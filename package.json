@@ -1,0 +1,93 @@
+{
+  "name": "cachyer",
+  "version": "1.0.0",
+  "description": "A flexible, type-safe caching layer with support for multiple database adapters (Redis, MongoDB, PostgreSQL, CouchDB, and more)",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./adapters/redis": {
+      "import": "./dist/adapters/redis/index.mjs",
+      "require": "./dist/adapters/redis/index.js",
+      "types": "./dist/adapters/redis/index.d.ts"
+    },
+    "./adapters/memory": {
+      "import": "./dist/adapters/memory/index.mjs",
+      "require": "./dist/adapters/memory/index.js",
+      "types": "./dist/adapters/memory/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "build:watch": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "cache",
+    "caching",
+    "redis",
+    "mongodb",
+    "postgres",
+    "couchdb",
+    "typescript",
+    "type-safe",
+    "adapter",
+    "rate-limiting",
+    "distributed-cache",
+    "feed",
+    "social-media",
+    "lua-scripts"
+  ],
+  "author": "Ali Karimi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alikarimii/cachyer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/alikarimii/cachyer/issues"
+  },
+  "homepage": "https://github.com/alikarimii/cachyer#readme",
+  "peerDependencies": {
+    "ioredis": "^5.9.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/ioredis": "^5.0.0",
+    "@types/node": "^20.19.27",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
