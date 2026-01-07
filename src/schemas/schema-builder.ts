@@ -79,7 +79,7 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
 
     this.operations[name] = {
       command: ttl ? "SETEX" : "SET",
-      buildArgs: buildArgs as any,
+      buildArgs: buildArgs,
       parseResult: (r) => r as "OK",
       description: `Set value in cache${ttl ? ` with ${ttl}s TTL` : ""}`,
     };

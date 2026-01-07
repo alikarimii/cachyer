@@ -356,9 +356,7 @@ export class Cachyer {
     args: (string | number)[],
     _options?: ExecuteOptions
   ): Promise<TResult> {
-    const adapter = this.adapter as any;
-
-    if (typeof adapter.executeScript !== "function") {
+    if (typeof this.adapter.executeScript !== "function") {
       throw new CacheError(
         "Scripting is not supported by this adapter",
         CacheErrorCode.ADAPTER_NOT_SUPPORTED
@@ -368,7 +366,7 @@ export class Cachyer {
     const prefixedKeys = keys.map((k) => this.prefixKey(k));
 
     try {
-      return await adapter.executeScript(script, prefixedKeys, args);
+      return await this.adapter.executeScript(script, prefixedKeys, args);
     } catch (error) {
       throw new CacheError(
         "Script execution failed",
@@ -382,16 +380,14 @@ export class Cachyer {
    * Load a script
    */
   async loadScript(script: string): Promise<string> {
-    const adapter = this.adapter as any;
-
-    if (typeof adapter.loadScript !== "function") {
+    if (typeof this.adapter.loadScript !== "function") {
       throw new CacheError(
         "Scripting is not supported by this adapter",
         CacheErrorCode.ADAPTER_NOT_SUPPORTED
       );
     }
 
-    const hash = await adapter.loadScript(script);
+    const hash = await this.adapter.loadScript(script);
     this.scriptHashes.set(script, hash);
     return hash;
   }
@@ -404,9 +400,7 @@ export class Cachyer {
    * Execute operations in a pipeline
    */
   async pipeline(entries: PipelineEntry[]): Promise<PipelineResult> {
-    const adapter = this.adapter as any;
-
-    if (typeof adapter.executePipeline !== "function") {
+    if (typeof this.adapter.executePipeline !== "function") {
       // Fallback to sequential execution
       return this.executePipelineFallback(entries);
     }
@@ -416,16 +410,14 @@ export class Cachyer {
       params: this.applyKeyPrefixToParams(entry.params),
     }));
 
-    return adapter.executePipeline(prefixedEntries);
+    return this.adapter.executePipeline(prefixedEntries);
   }
 
   /**
    * Execute operations in a transaction
    */
   async transaction(entries: PipelineEntry[]): Promise<TransactionResult> {
-    const adapter = this.adapter as any;
-
-    if (typeof adapter.executeTransaction !== "function") {
+    if (typeof this.adapter.executeTransaction !== "function") {
       throw new CacheError(
         "Transactions are not supported by this adapter",
         CacheErrorCode.ADAPTER_NOT_SUPPORTED
@@ -437,7 +429,7 @@ export class Cachyer {
       params: this.applyKeyPrefixToParams(entry.params),
     }));
 
-    return adapter.executeTransaction(prefixedEntries);
+    return this.adapter.executeTransaction(prefixedEntries);
   }
 
   // =============================================
@@ -609,16 +601,14 @@ export class Cachyer {
    * Publish a message
    */
   async publish(channel: string, message: string): Promise<number> {
-    const adapter = this.adapter as any;
-
-    if (typeof adapter.publish !== "function") {
+    if (typeof this.adapter.publish !== "function") {
       throw new CacheError(
         "Pub/Sub is not supported by this adapter",
         CacheErrorCode.ADAPTER_NOT_SUPPORTED
       );
     }
 
-    return adapter.publish(this.prefixKey(channel), message);
+    return this.adapter.publish(this.prefixKey(channel), message);
   }
 
   /**
@@ -628,16 +618,14 @@ export class Cachyer {
     channel: string,
     callback: (message: string, channel: string) => void
   ): Promise<void> {
-    const adapter = this.adapter as any;
-
-    if (typeof adapter.subscribe !== "function") {
+    if (typeof this.adapter.subscribe !== "function") {
       throw new CacheError(
         "Pub/Sub is not supported by this adapter",
         CacheErrorCode.ADAPTER_NOT_SUPPORTED
       );
     }
 
-    return adapter.subscribe(this.prefixKey(channel), callback);
+    return this.adapter.subscribe(this.prefixKey(channel), callback);
   }
 
   // =============================================
@@ -662,8 +650,8 @@ export class Cachyer {
    * Get cache statistics
    */
   async getStats(): Promise<CacheStats | null> {
-    if (typeof (this.adapter as any).getStats === "function") {
-      return (this.adapter as any).getStats();
+    if (typeof this.adapter.getStats === "function") {
+      return this.adapter.getStats();
     }
     return null;
   }
@@ -770,10 +758,10 @@ export class Cachyer {
     args: (string | number)[],
     timeout: number
   ): Promise<unknown> {
-    const adapter = this.adapter as any;
-    const methodName = command.toLowerCase();
+    const methodName = command.toLowerCase() as keyof CacheAdapter;
+    const method = this._adapter[methodName];
 
-    if (typeof adapter[methodName] !== "function") {
+    if (typeof method !== "function") {
       throw new CacheError(
         `Command ${command} is not supported by this adapter`,
         CacheErrorCode.ADAPTER_NOT_SUPPORTED
@@ -786,7 +774,9 @@ export class Cachyer {
       }, timeout);
     });
 
-    const commandPromise = adapter[methodName](...args);
+    const commandPromise = (
+      method as (...a: unknown[]) => Promise<unknown>
+    ).apply(this._adapter, args);
 
     return Promise.race([commandPromise, timeoutPromise]);
   }
