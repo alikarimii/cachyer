@@ -6,11 +6,11 @@
 //
 // USAGE:
 //   const cache = new Cachyer({ adapter: redisAdapter })
-//   
+//
 //   // Core operations (with key prefixing)
 //   await cache.get('key')
 //   await cache.zadd('leaderboard', [...])
-//   
+//
 //   // Advanced features (direct adapter access)
 //   await cache.adapter.xadd('logs', '*', data)
 //   await cache.adapter.bfAdd('bloom', 'item')
@@ -82,3 +82,5 @@ export function createMemoryCachyer(options?: {
     defaultTtl: options?.defaultTtl,
   });
 }
+
+export { createRateLimitService } from "./services";
