@@ -43,6 +43,8 @@ export type CacheCommand =
   | "LINDEX"
   | "LSET"
   | "LREM"
+  | "LINSERT"
+  | "LPOS"
   // Set commands
   | "SADD"
   | "SREM"

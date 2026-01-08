@@ -321,6 +321,123 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
     };
     return this;
   }
+  addListLength(name: string = "length"): this {
+    this.operations[name] = {
+      command: "LLEN",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => r as number,
+      description: `Get list length`,
+    };
+    return this;
+  }
+  addListPop(name: string = "pop"): this {
+    this.operations[name] = {
+      command: "LPOP",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => r as string | null,
+      description: `Pop from list`,
+    };
+    return this;
+  }
+  addListTrim(name: string = "trim"): this {
+    this.operations[name] = {
+      command: "LTRIM",
+      buildArgs: (params: TKeyParams & { start: number; stop: number }) => [
+        this.keyBuilder(params),
+        params.start,
+        params.stop,
+      ],
+      parseResult: (r) => r as "OK",
+      description: `Trim list`,
+    };
+    return this;
+  }
+  addListIndexOf(name: string = "indexOf"): this {
+    this.operations[name] = {
+      command: "LPOS",
+      buildArgs: (params: TKeyParams & { value: string }) => [
+        this.keyBuilder(params),
+        params.value,
+      ],
+      parseResult: (r) => (r === null ? -1 : (r as number)),
+      description: `Get index of value in list`,
+    };
+    return this;
+  }
+  addListInsert(name: string = "insert"): this {
+    this.operations[name] = {
+      command: "LINSERT",
+      buildArgs: (
+        params: TKeyParams & {
+          before: boolean;
+          pivot: string;
+          value: string;
+        }
+      ) => [
+        this.keyBuilder(params),
+        params.before ? "BEFORE" : "AFTER",
+        params.pivot,
+        params.value,
+      ],
+      parseResult: (r) => r as number,
+      description: `Insert into list`,
+    };
+    return this;
+  }
+  addListSetExpire(name: string = "setExpire", defaultTtl?: number): this {
+    this.operations[name] = {
+      command: "EXPIRE",
+      buildArgs: (params: TKeyParams & { ttl?: number }) => [
+        this.keyBuilder(params),
+        params.ttl ?? defaultTtl ?? 3600,
+      ],
+      parseResult: (r) => (r as number) === 1,
+      description: `Set expiration for list`,
+    };
+    return this;
+  }
+  addListGetTtl(name: string = "getTtl"): this {
+    this.operations[name] = {
+      command: "TTL",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => r as number,
+      description: `Get TTL for list`,
+    };
+    return this;
+  }
+  addListClear(name: string = "clear"): this {
+    this.operations[name] = {
+      command: "DEL",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => (r as number) === 1,
+      description: `Clear list`,
+    };
+    return this;
+  }
+  addListExists(name: string = "exists"): this {
+    this.operations[name] = {
+      command: "EXISTS",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => (r as number) === 1,
+      description: `Check if list exists`,
+    };
+    return this;
+  }
+  addListGetByIndex<TResult = string | null>(
+    name: string = "getByIndex",
+    parseResult?: (result: unknown) => TResult
+  ): this {
+    this.operations[name] = {
+      command: "LINDEX",
+      buildArgs: (params: TKeyParams & { index: number }) => [
+        this.keyBuilder(params),
+        params.index,
+      ],
+      parseResult: parseResult ?? ((r) => r as TResult),
+      description: `Get value by index from list`,
+    };
+    return this;
+  }
 
   /**
    * Add an INCR operation
@@ -403,6 +520,13 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
       parseResult: (r) => (r as number) === 1,
       description: `Check if key exists`,
     };
+    return this;
+  }
+  addCustomOperation<TParams extends Record<string, unknown>, TResult>(
+    name: string,
+    operation: CacheOperation<TParams, TResult>
+  ): this {
+    this.operations[name] = operation;
     return this;
   }
 
