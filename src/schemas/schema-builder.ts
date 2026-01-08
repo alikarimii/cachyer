@@ -432,6 +432,32 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
     };
     return this;
   }
+  addSortedSetGetTopMembers<TResult = Array<{ member: string; score: number }>>(
+    name: string = "getTopMembers",
+    parseResult?: (result: unknown) => TResult
+  ): this {
+    const defaultParse = (result: unknown) => {
+      const arr = result as string[];
+      const items: Array<{ member: string; score: number }> = [];
+      for (let i = 0; i < arr.length; i += 2) {
+        items.push({ member: arr[i]!, score: parseFloat(arr[i + 1]!) });
+      }
+      return items as unknown as TResult;
+    };
+
+    this.operations[name] = {
+      command: "ZREVRANGE",
+      buildArgs: (params: TKeyParams & { topN: number }) => [
+        this.keyBuilder(params),
+        0,
+        params.topN - 1,
+        "WITHSCORES",
+      ],
+      parseResult: parseResult ?? defaultParse,
+      description: `Get top N members from sorted set`,
+    };
+    return this;
+  }
   /**
    * Add a set SADD operation
    */
