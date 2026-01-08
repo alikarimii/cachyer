@@ -1,6 +1,6 @@
 {
   "name": "cachyer",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "A flexible, type-safe caching layer with support for multiple database adapters (Redis, MongoDB, PostgreSQL, CouchDB, and more)",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

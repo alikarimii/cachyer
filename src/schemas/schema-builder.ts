@@ -295,6 +295,32 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
     };
     return this;
   }
+  addListSet(name: string = "set"): this {
+    this.operations[name] = {
+      command: "LSET",
+      buildArgs: (params: TKeyParams & { index: number; value: string }) => [
+        this.keyBuilder(params),
+        params.index,
+        params.value,
+      ],
+      parseResult: (r) => r as "OK",
+      description: `Set value at index in list`,
+    };
+    return this;
+  }
+  addListRemove(name: string = "remove"): this {
+    this.operations[name] = {
+      command: "LREM",
+      buildArgs: (params: TKeyParams & { count: number; value: string }) => [
+        this.keyBuilder(params),
+        params.count,
+        params.value,
+      ],
+      parseResult: (r) => r as number,
+      description: `Remove from list`,
+    };
+    return this;
+  }
 
   /**
    * Add an INCR operation
