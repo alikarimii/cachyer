@@ -34,6 +34,22 @@ npm install cachyer ioredis
 npm install cachyer mongodb
 ```
 
+### Tree-Shakeable Imports
+
+For smaller bundle sizes, import only the adapter you need:
+
+```typescript
+// Full bundle (~11KB gzipped)
+import { Cachyer, createRedisAdapter } from "cachyer";
+
+// Or import adapters separately for smaller bundles:
+// Redis only (~2.8KB gzipped)
+import { createRedisAdapter, RedisAdapter } from "cachyer/redis";
+
+// Memory only (~3.2KB gzipped)
+import { createMemoryAdapter, MemoryAdapter } from "cachyer/memory";
+```
+
 ## Quick Start
 
 ### Basic Usage with Redis
@@ -232,6 +248,139 @@ const apiCounterSchema = createCounterSchema<{
 }>("apiCounter", "ratelimit:{endpoint}:{userId}", 60);
 ```
 
+### Custom Operations
+
+For advanced use cases where the built-in operations don't cover your needs, you can define custom operations using `addCustomOperation`. This gives you full control over the Redis command, arguments, and result parsing.
+
+```typescript
+import type { CacheOperation } from "cachyer";
+import { createSchema, createKeyBuilder } from "cachyer";
+
+// Define your key params and operation params
+interface GlobalTrendingParams {
+  // No key params for static keys
+}
+
+interface GlobalTrendingUpdateParams {
+  postId: string;
+  score: number;
+}
+
+// Create a static key builder for global trending
+const GlobalKeys = {
+  trendingPosts: createKeyBuilder<GlobalTrendingParams>(
+    "global:trending:posts"
+  ),
+};
+
+// Define a custom operation with advanced Redis options
+const globalTrendingUpdateIfHigher: CacheOperation<
+  GlobalTrendingUpdateParams,
+  number
+> = {
+  command: "ZADD",
+  buildArgs: (params) => [
+    GlobalKeys.trendingPosts({}),
+    "GT", // Only update if new score is greater than current
+    params.score,
+    params.postId,
+  ],
+  parseResult: (result) => result as number,
+  description: "Update post score only if new score is higher",
+};
+
+// Use it in a schema
+const trendingSchema = createSchema<GlobalTrendingParams>()
+  .name("globalTrending")
+  .keyPattern("global:trending:posts")
+  .structure("SORTED_SET")
+  .ttl(3600)
+  .operations((ops) => {
+    ops
+      .addSortedSetGetRange("getTop", false)
+      .addSortedSetGetRange("getTopWithScores", true)
+      // Add custom operation for conditional updates
+      .addCustomOperation("updateIfHigher", globalTrendingUpdateIfHigher);
+  })
+  .build();
+
+// Execute the custom operation
+const result = await cache.execute(trendingSchema.operations.updateIfHigher, {
+  postId: "post:12345",
+  score: 1500,
+});
+
+console.log(`Updated ${result} entries`);
+```
+
+#### Custom Operation Structure
+
+A `CacheOperation` has the following structure:
+
+```typescript
+interface CacheOperation<TParams, TResult> {
+  /** The Redis command to execute (e.g., 'ZADD', 'EVAL', 'HSET') */
+  command: string;
+
+  /** Function to build command arguments from params */
+  buildArgs: (params: TParams) => (string | number)[];
+
+  /** Function to parse the raw Redis result into your desired type */
+  parseResult?: (result: unknown) => TResult;
+
+  /** Optional description for documentation */
+  description?: string;
+}
+```
+
+#### More Custom Operation Examples
+
+```typescript
+// Custom ZADD with NX (only add new members, don't update existing)
+const addNewMemberOnly: CacheOperation<
+  { userId: string; member: string; score: number },
+  number
+> = {
+  command: "ZADD",
+  buildArgs: (params) => [
+    `user:feed:${params.userId}`,
+    "NX", // Only add if not exists
+    params.score,
+    params.member,
+  ],
+  parseResult: (result) => result as number,
+  description: "Add member only if it doesn't exist",
+};
+
+// Custom GETEX with expiration refresh
+const getAndRefreshTtl: CacheOperation<
+  { key: string; ttl: number },
+  string | null
+> = {
+  command: "GETEX",
+  buildArgs: (params) => [params.key, "EX", params.ttl],
+  parseResult: (result) => result as string | null,
+  description: "Get value and refresh TTL atomically",
+};
+
+// Custom SETNX for distributed locking
+const acquireLock: CacheOperation<
+  { lockKey: string; ownerId: string; ttl: number },
+  boolean
+> = {
+  command: "SET",
+  buildArgs: (params) => [
+    params.lockKey,
+    params.ownerId,
+    "NX", // Only set if not exists
+    "EX", // Set expiration
+    params.ttl,
+  ],
+  parseResult: (result) => result === "OK",
+  description: "Acquire a distributed lock",
+};
+```
+
 ## Rate Limiting
 
 Built-in rate limiting service with multiple algorithms:
@@ -241,7 +390,6 @@ import { createRedisAdapter, createRateLimitService } from "cachyer";
 
 const adapter = createRedisAdapter({ client: redis });
 const rateLimiter = createRateLimitService(adapter, {
-  keyPrefix: "ratelimit",
   defaultConfig: { maxRequests: 100, windowSeconds: 60 },
   endpoints: {
     "api:create": { maxRequests: 10, windowSeconds: 60 },

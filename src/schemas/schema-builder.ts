@@ -211,7 +211,227 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
     };
     return this;
   }
+  addSortedSetRemove(name: string = "remove"): this {
+    this.operations[name] = {
+      command: "ZREM",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (r) => r as number,
+      description: `Remove from sorted set`,
+    };
+    return this;
+  }
+  addSortedSetCount(name: string = "count"): this {
+    this.operations[name] = {
+      command: "ZCARD",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => r as number,
+      description: `Get sorted set count`,
+    };
+    return this;
+  }
+  addSortedSetScore(name: string = "getScore"): this {
+    this.operations[name] = {
+      command: "ZSCORE",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (r) => (r === null ? null : parseFloat(r as string)),
+      description: `Get score of member in sorted set`,
+    };
+    return this;
+  }
+  addSortedSetGetRank(name: string = "getRank"): this {
+    this.operations[name] = {
+      command: "ZREVRANK",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (r) => (r === null ? null : (r as number)),
+      description: `Get rank of member in sorted set`,
+    };
+    return this;
+  }
+  addSortedSetIncrementBy(name: string = "incrementBy"): this {
+    this.operations[name] = {
+      command: "ZINCRBY",
+      buildArgs: (params: TKeyParams & { member: string; amount: number }) => [
+        this.keyBuilder(params),
+        params.amount,
+        params.member,
+      ],
+      parseResult: (r) => parseFloat(r as string),
+      description: `Increment score of member in sorted set`,
+    };
+    return this;
+  }
+  addSortedSetClear(name: string = "clear"): this {
+    this.operations[name] = {
+      command: "DEL",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => (r as number) === 1,
+      description: `Clear sorted set`,
+    };
+    return this;
+  }
+  addSortedSetExists(name: string = "exists"): this {
+    this.operations[name] = {
+      command: "EXISTS",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => (r as number) === 1,
+      description: `Check if sorted set exists`,
+    };
+    return this;
+  }
+  addSortedSetSetExpire(name: string = "setExpire", defaultTtl?: number): this {
+    this.operations[name] = {
+      command: "EXPIRE",
+      buildArgs: (params: TKeyParams & { ttl?: number }) => [
+        this.keyBuilder(params),
+        params.ttl ?? defaultTtl ?? 3600,
+      ],
+      parseResult: (r) => (r as number) === 1,
+      description: `Set expiration for sorted set`,
+    };
+    return this;
+  }
+  addSortedSetGetTtl(name: string = "getTtl"): this {
+    this.operations[name] = {
+      command: "TTL",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => r as number,
+      description: `Get TTL for sorted set`,
+    };
+    return this;
+  }
+  addSortedSetGetRangeWithScores<
+    TResult = Array<{ member: string; score: number }>,
+  >(
+    name: string = "getRangeWithScores",
+    parseResult?: (result: unknown) => TResult
+  ): this {
+    const defaultParse = (result: unknown) => {
+      const arr = result as string[];
+      const items: Array<{ member: string; score: number }> = [];
+      for (let i = 0; i < arr.length; i += 2) {
+        items.push({ member: arr[i]!, score: parseFloat(arr[i + 1]!) });
+      }
+      return items as unknown as TResult;
+    };
 
+    this.operations[name] = {
+      command: "ZREVRANGE",
+      buildArgs: (params: TKeyParams & { start: number; stop: number }) => [
+        this.keyBuilder(params),
+        params.start,
+        params.stop,
+        "WITHSCORES",
+      ],
+      parseResult: parseResult ?? defaultParse,
+      description: `Get range with scores from sorted set`,
+    };
+    return this;
+  }
+  addSortedSetRemoveOldest(name: string = "removeOldest"): this {
+    this.operations[name] = {
+      command: "ZREMRANGEBYRANK",
+      buildArgs: (params: TKeyParams & { count: number }) => [
+        this.keyBuilder(params),
+        0,
+        params.count - 1,
+      ],
+      parseResult: (r) => r as number,
+      description: `Remove oldest members from sorted set`,
+    };
+    return this;
+  }
+  addSortedSetCountInRange(name: string = "countInRange"): this {
+    this.operations[name] = {
+      command: "ZCOUNT",
+      buildArgs: (params: TKeyParams & { min: number; max: number }) => [
+        this.keyBuilder(params),
+        params.min,
+        params.max,
+      ],
+      parseResult: (r) => r as number,
+      description: `Count members in score range in sorted set`,
+    };
+    return this;
+  }
+  addSortedSetTotalCount(name: string = "totalCount"): this {
+    this.operations[name] = {
+      command: "ZCARD",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => r as number,
+      description: `Get total count of members in sorted set`,
+    };
+    return this;
+  }
+  addSortedSetHasMember(name: string = "hasMember"): this {
+    this.operations[name] = {
+      command: "ZSCORE",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (r) => r !== null,
+      description: `Check if member exists in sorted set`,
+    };
+    return this;
+  }
+  addSortedSetGetScore(name: string = "getScore"): this {
+    this.operations[name] = {
+      command: "ZSCORE",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (r) => (r === null ? null : parseFloat(r as string)),
+      description: `Get score of member in sorted set`,
+    };
+    return this;
+  }
+  addSortedSetRemoveMember(name: string = "removeMember"): this {
+    this.operations[name] = {
+      command: "ZREM",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (r) => r as number,
+      description: `Remove member from sorted set`,
+    };
+    return this;
+  }
+  addSortedSetExpire(name: string = "expire", defaultTtl?: number): this {
+    this.operations[name] = {
+      command: "EXPIRE",
+      buildArgs: (params: TKeyParams & { ttl?: number }) => [
+        this.keyBuilder(params),
+        params.ttl ?? defaultTtl ?? 3600,
+      ],
+      parseResult: (r) => (r as number) === 1,
+      description: `Set expiration for sorted set`,
+    };
+    return this;
+  }
+  addSortedSetScoreIncrement(name: string = "scoreIncrement"): this {
+    this.operations[name] = {
+      command: "ZINCRBY",
+      buildArgs: (params: TKeyParams & { member: string; amount: number }) => [
+        this.keyBuilder(params),
+        params.amount,
+        params.member,
+      ],
+      parseResult: (r) => parseFloat(r as string),
+      description: `Increment score of member in sorted set`,
+    };
+    return this;
+  }
   /**
    * Add a set SADD operation
    */
