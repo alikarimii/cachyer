@@ -5,6 +5,7 @@
 // for a social media platform with feeds, engagement, and activities
 // =============================================
 
+import { createTypedSchema } from "../src";
 import { MemoryAdapter } from "../src/adapters/memory/memory.adapter";
 import { Cachyer } from "../src/core/cachyer";
 import { createKeyPatterns } from "../src/utils/key-patterns";
@@ -47,9 +48,37 @@ const patterns = createKeyPatterns({
 });
 
 // =============================================
-// CACHE SERVICE
+// TYPED CACHE SCHEMA EXAMPLE
 // =============================================
 
+// Define key params type
+type CacheKeyParams = { key: string };
+
+// Create a fully typed schema - operations are inferred!
+const cache = createTypedSchema<CacheKeyParams>()
+  .name("demo-cache")
+  .keyPattern("demo:{key}")
+  .structure("STRING")
+  .ttl(3600)
+  .operations((ops) => ops.addGet().addSet().addDelete().addExists())
+  .build();
+
+// Now you get full autocomplete and type checking:
+// cache.operations.get    ✅ typed as GetOperation
+// cache.operations.set    ✅ typed as SetOperation
+// cache.operations.delete ✅ typed as DeleteOperation
+// cache.operations.exists ✅ typed as ExistsOperation
+// cache.operations.foo    ❌ TypeScript error: Property 'foo' does not exist
+
+// Access operations with full type safety
+const getOp = cache.operations.get;
+const setOp = cache.operations.set;
+const deleteOp = cache.operations.delete;
+const existsOp = cache.operations.exists;
+
+// =============================================
+// CACHE SERVICE
+// =============================================
 export class SocialMediaCache {
   private cachyer: Cachyer;
 
