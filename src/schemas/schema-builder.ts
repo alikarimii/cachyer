@@ -218,6 +218,10 @@ export type ListInsertOperation<TKeyParams extends Record<string, unknown>> =
 export type SetAddOperation<TKeyParams extends Record<string, unknown>> =
   CacheOperation<TKeyParams & { member: string }, number>;
 
+export type SetAddMultipleOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { members: string[] }, number>;
+
 /**
  * Type for SET GET ALL operation
  */
@@ -231,6 +235,14 @@ export type SetGetAllOperation<
  */
 export type SetIsMemberOperation<TKeyParams extends Record<string, unknown>> =
   CacheOperation<TKeyParams & { member: string }, boolean>;
+
+export type SetRemoveMemberOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { member: string }, number>;
+
+export type SetCountMembersOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams, number>;
 
 /**
  * Type for LIST PUSH operation
@@ -979,6 +991,27 @@ export class TypedOperationBuilder<
     };
     return this.withOperation(opName, operation);
   }
+  /**
+   * Add a set SADD multiple operation
+   */
+  addSetAddMultiple<TName extends string = "setAddMultiple">(
+    name?: TName
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: SetAddMultipleOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "setAdd") as TName;
+    const operation: SetAddMultipleOperation<TKeyParams> = {
+      command: "SADD",
+      buildArgs: (params: TKeyParams & { members: string[] }) => [
+        this.keyBuilder(params),
+        ...params.members,
+      ],
+      parseResult: (r) => r as number,
+      description: `Add multiple to set`,
+    };
+    return this.withOperation(opName, operation);
+  }
 
   /**
    * Add a set SMEMBERS operation
@@ -1021,7 +1054,45 @@ export class TypedOperationBuilder<
     };
     return this.withOperation(opName, operation);
   }
-
+  /**
+   * Add a set SREM operation
+   */
+  addSetRemoveMember<TName extends string = "setRemoveMember">(
+    name?: TName
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: SetRemoveMemberOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "setRemoveMember") as TName;
+    const operation: SetRemoveMemberOperation<TKeyParams> = {
+      command: "SREM",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (result) => result as number,
+      description: "Remove member from set",
+    };
+    return this.withOperation(opName, operation);
+  }
+  /**
+   * Add a set SCARD operation
+   */
+  addSetCountMembers<TName extends string = "setCountMembers">(
+    name?: TName
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: SetCountMembersOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "setRemoveMember") as TName;
+    const operation: SetCountMembersOperation<TKeyParams> = {
+      command: "SCARD",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (result) => result as number,
+      description: "Count members in set",
+    };
+    return this.withOperation(opName, operation);
+  }
   /**
    * Add a list LPUSH operation
    */
@@ -1741,6 +1812,21 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
     };
     return this;
   }
+  /**
+   * Add a set SADD multiple operation
+   */
+  addSetAddMultiple(name: string = "setAdd"): this {
+    this.operations[name] = {
+      command: "SADD",
+      buildArgs: (params: TKeyParams & { members: string[] }) => [
+        this.keyBuilder(params),
+        ...params.members,
+      ],
+      parseResult: (r) => r as number,
+      description: `Add multiple to set`,
+    };
+    return this;
+  }
 
   /**
    * Add a set SMEMBERS operation
@@ -1770,6 +1856,34 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
       ],
       parseResult: (r) => (r as number) === 1,
       description: `Check if member exists in set`,
+    };
+    return this;
+  }
+
+  /**
+   * Add a set SREM operation
+   */
+  addSetRemoveMember(name: string = "setRemoveMember"): this {
+    this.operations[name] = {
+      command: "SREM",
+      buildArgs: (params: TKeyParams & { member: string }) => [
+        this.keyBuilder(params),
+        params.member,
+      ],
+      parseResult: (result) => result as number,
+      description: "Remove member from set",
+    };
+    return this;
+  }
+  /**
+   * Add a set SCARD operation
+   */
+  addSetCountMembers(name: string = "setCountMembers"): this {
+    this.operations[name] = {
+      command: "SCARD",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (result) => result as number,
+      description: "Count members in set",
     };
     return this;
   }
