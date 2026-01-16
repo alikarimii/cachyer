@@ -54,6 +54,7 @@ export type CacheCommand =
   | "SINTER"
   | "SUNION"
   | "SDIFF"
+  | "SRANDMEMBER"
   // Sorted Set commands
   | "ZADD"
   | "ZREM"

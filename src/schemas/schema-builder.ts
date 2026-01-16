@@ -244,6 +244,11 @@ export type SetCountMembersOperation<
   TKeyParams extends Record<string, unknown>,
 > = CacheOperation<TKeyParams, number>;
 
+export type SetGetRandomMemberOperation<
+  TKeyParams extends Record<string, unknown>,
+  TResult = string | null,
+> = CacheOperation<TKeyParams, TResult>;
+
 /**
  * Type for LIST PUSH operation
  */
@@ -1093,6 +1098,21 @@ export class TypedOperationBuilder<
     };
     return this.withOperation(opName, operation);
   }
+  addSetGetRandomMember<TName extends string = "setGetRandomMember">(
+    name?: TName
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: SetGetRandomMemberOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "setGetRandomMember") as TName;
+    const operation: SetGetRandomMemberOperation<TKeyParams> = {
+      command: "SRANDMEMBER",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (result) => result as string | null,
+      description: "Get random member from set",
+    };
+    return this.withOperation(opName, operation);
+  }
   /**
    * Add a list LPUSH operation
    */
@@ -1884,6 +1904,15 @@ export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
       buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
       parseResult: (result) => result as number,
       description: "Count members in set",
+    };
+    return this;
+  }
+  addSetGetRandomMember(name: string = "setGetRandomMember"): this {
+    this.operations[name] = {
+      command: "SRANDMEMBER",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (result) => result as string | null,
+      description: "Get random member from set",
     };
     return this;
   }
