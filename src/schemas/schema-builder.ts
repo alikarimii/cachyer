@@ -179,25 +179,9 @@ export type SortedSetCountInRangeOperation<
   TKeyParams extends Record<string, unknown>,
 > = CacheOperation<TKeyParams & { min: number; max: number }, number>;
 
-export type SortedSetTotalCountOperation<
-  TKeyParams extends Record<string, unknown>,
-> = CacheOperation<TKeyParams, number>;
-
 export type SortedSetHasMemberOperation<
   TKeyParams extends Record<string, unknown>,
 > = CacheOperation<TKeyParams & { member: string }, boolean>;
-
-export type SortedSetGetScoreOperation<
-  TKeyParams extends Record<string, unknown>,
-> = CacheOperation<TKeyParams & { member: string }, null | number>;
-
-export type SortedSetRemoveMemberOperation<
-  TKeyParams extends Record<string, unknown>,
-> = CacheOperation<TKeyParams & { member: string }, number>;
-
-export type SortedSetScoreIncrementOperation<
-  TKeyParams extends Record<string, unknown>,
-> = CacheOperation<TKeyParams & { member: string; amount: number }, number>;
 
 export type SortedSetGetTopMembersOperation<
   TKeyParams extends Record<string, unknown>,
@@ -594,11 +578,7 @@ export class TypedOperationBuilder<
       buildArgs: (
         params: TKeyParams & { fields: Record<string, string | number> }
       ) => {
-        const args: (string | number)[] = [this.keyBuilder(params)];
-        for (const [field, value] of Object.entries(params.fields)) {
-          args.push(field, value);
-        }
-        return args;
+        return [this.keyBuilder(params), params.fields] as unknown as (string | number)[];
       },
       parseResult: (r) => r as "OK",
       description: `Set multiple hash fields`,
@@ -854,21 +834,6 @@ export class TypedOperationBuilder<
     };
     return this.withOperation(opName, operation);
   }
-  addSortedSetTotalCount<TName extends string = "sortedSetTotalCount">(
-    name?: TName
-  ): TypedOperationBuilder<
-    TKeyParams,
-    TOperations & { [K in TName]: SortedSetTotalCountOperation<TKeyParams> }
-  > {
-    const opName = (name ?? "sortedSetTotalCount") as TName;
-    const operation: SortedSetTotalCountOperation<TKeyParams> = {
-      command: "ZCARD",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => r as number,
-      description: `Get total count of members in sorted set`,
-    };
-    return this.withOperation(opName, operation);
-  }
   addSortedSetHasMember<TName extends string = "sortedSetHasMember">(
     name?: TName
   ): TypedOperationBuilder<
@@ -884,61 +849,6 @@ export class TypedOperationBuilder<
       ],
       parseResult: (r) => r !== null,
       description: `Check if member exists in sorted set`,
-    };
-    return this.withOperation(opName, operation);
-  }
-  addSortedSetGetScore<TName extends string = "sortedSetGetScore">(
-    name?: TName
-  ): TypedOperationBuilder<
-    TKeyParams,
-    TOperations & { [K in TName]: SortedSetGetScoreOperation<TKeyParams> }
-  > {
-    const opName = (name ?? "sortedSetHasMember") as TName;
-    const operation: SortedSetGetScoreOperation<TKeyParams> = {
-      command: "ZSCORE",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => (r === null ? null : parseFloat(r as string)),
-      description: `Get score of member in sorted set`,
-    };
-    return this.withOperation(opName, operation);
-  }
-  addSortedSetRemoveMember<TName extends string = "sortedSetRemoveMember">(
-    name?: TName
-  ): TypedOperationBuilder<
-    TKeyParams,
-    TOperations & { [K in TName]: SortedSetRemoveMemberOperation<TKeyParams> }
-  > {
-    const opName = (name ?? "sortedSetRemoveMember") as TName;
-    const operation: SortedSetRemoveMemberOperation<TKeyParams> = {
-      command: "ZREM",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => r as number,
-      description: `Remove member from sorted set`,
-    };
-    return this.withOperation(opName, operation);
-  }
-  addSortedSetScoreIncrement<TName extends string = "sortedSetScoreIncrement">(
-    name?: TName
-  ): TypedOperationBuilder<
-    TKeyParams,
-    TOperations & { [K in TName]: SortedSetScoreIncrementOperation<TKeyParams> }
-  > {
-    const opName = (name ?? "sortedSetScoreIncrement") as TName;
-    const operation: SortedSetScoreIncrementOperation<TKeyParams> = {
-      command: "ZINCRBY",
-      buildArgs: (params: TKeyParams & { member: string; amount: number }) => [
-        this.keyBuilder(params),
-        params.amount,
-        params.member,
-      ],
-      parseResult: (r) => parseFloat(r as string),
-      description: `Increment score of member in sorted set`,
     };
     return this.withOperation(opName, operation);
   }
@@ -1089,7 +999,7 @@ export class TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SetCountMembersOperation<TKeyParams> }
   > {
-    const opName = (name ?? "setRemoveMember") as TName;
+    const opName = (name ?? "setCountMembers") as TName;
     const operation: SetCountMembersOperation<TKeyParams> = {
       command: "SCARD",
       buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
@@ -1361,845 +1271,6 @@ export class TypedOperationBuilder<
 }
 
 // =============================================
-// LEGACY OPERATION BUILDER (kept for backward compatibility)
-// =============================================
-
-/**
- * Operation builder for creating typed operations
- * @deprecated Use TypedOperationBuilder for better type inference
- */
-export class OperationBuilder<TKeyParams extends Record<string, unknown>> {
-  private readonly keyBuilder: KeyBuilder<TKeyParams>;
-  private readonly operations: Record<string, CacheOperation<any, any>> = {};
-
-  constructor(keyBuilder: KeyBuilder<TKeyParams>) {
-    this.keyBuilder = keyBuilder;
-  }
-
-  /**
-   * Add a string GET operation
-   */
-  addGet<TResult = string | null>(
-    name: string = "get",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    this.operations[name] = {
-      command: "GET",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: parseResult ?? ((r) => r as TResult),
-      description: `Get value from cache`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a string SET operation
-   */
-  addSet<TValue = string>(name: string = "set", ttl?: number): this {
-    const buildArgs = ttl
-      ? (params: TKeyParams & { value: TValue }) => [
-          this.keyBuilder(params),
-          String(params.value),
-          "EX",
-          ttl,
-        ]
-      : (params: TKeyParams & { value: TValue }) => [
-          this.keyBuilder(params),
-          String(params.value),
-        ];
-
-    this.operations[name] = {
-      command: ttl ? "SETEX" : "SET",
-      buildArgs: buildArgs,
-      parseResult: (r) => r as "OK",
-      description: `Set value in cache${ttl ? ` with ${ttl}s TTL` : ""}`,
-    };
-    return this;
-  }
-  /**
-   * Add a DEL operation
-   */
-  addDelete(name: string = "delete"): this {
-    this.operations[name] = {
-      command: "DEL",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => (r as number) === 1,
-      description: `Delete from cache`,
-    };
-    return this;
-  }
-  /**
-   * Add an EXISTS operation
-   */
-  addExists(name: string = "exists"): this {
-    this.operations[name] = {
-      command: "EXISTS",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => (r as number) === 1,
-      description: `Check if key exists`,
-    };
-    return this;
-  }
-  /**
-   * Add a TTL operation
-   */
-  addTtl(name: string = "ttl"): this {
-    this.operations[name] = {
-      command: "TTL",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => r as number,
-      description: `Get TTL`,
-    };
-    return this;
-  }
-  /**
-   * Add an EXPIRE operation
-   */
-  addExpire(name: string = "expire", defaultTtl?: number): this {
-    this.operations[name] = {
-      command: "EXPIRE",
-      buildArgs: (params: TKeyParams & { ttl?: number }) => [
-        this.keyBuilder(params),
-        params.ttl ?? defaultTtl ?? 3600,
-      ],
-      parseResult: (r) => (r as number) === 1,
-      description: `Set expiration`,
-    };
-    return this;
-  }
-
-  /**
-   * Add an INCR operation
-   */
-  addIncrement(name: string = "listIncrement"): this {
-    this.operations[name] = {
-      command: "INCR",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => r as number,
-      description: `Increment counter`,
-    };
-    return this;
-  }
-
-  /**
-   * Add an INCRBY operation
-   */
-  addIncrementBy(name: string = "listIncrementBy"): this {
-    this.operations[name] = {
-      command: "INCRBY",
-      buildArgs: (params: TKeyParams & { amount: number }) => [
-        this.keyBuilder(params),
-        params.amount,
-      ],
-      parseResult: (r) => r as number,
-      description: `Increment counter by amount`,
-    };
-    return this;
-  }
-  /**
-   * Add a hash HGETALL operation
-   */
-  addHashGetAll<TResult = Record<string, string>>(
-    name: string = "hashGetAll",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    this.operations[name] = {
-      command: "HGETALL",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: parseResult ?? ((r) => r as TResult),
-      description: `Get all hash fields`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a hash HGET operation
-   */
-  addHashGet<TResult = string | null>(
-    name: string = "hashGetField",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    this.operations[name] = {
-      command: "HGET",
-      buildArgs: (params: TKeyParams & { field: string }) => [
-        this.keyBuilder(params),
-        params.field,
-      ],
-      parseResult: parseResult ?? ((r) => r as TResult),
-      description: `Get hash field`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a hash HSET operation
-   */
-  addHashSet(name: string = "hashSetField"): this {
-    this.operations[name] = {
-      command: "HSET",
-      buildArgs: (params: TKeyParams & { field: string; value: string }) => [
-        this.keyBuilder(params),
-        params.field,
-        params.value,
-      ],
-      parseResult: (r) => r as number,
-      description: `Set hash field`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a hash HMSET operation
-   */
-  addHashSetMultiple(name: string = "hashSetMultiple"): this {
-    this.operations[name] = {
-      command: "HMSET",
-      buildArgs: (
-        params: TKeyParams & { fields: Record<string, string | number> }
-      ) => {
-        const args: (string | number)[] = [this.keyBuilder(params)];
-        for (const [field, value] of Object.entries(params.fields)) {
-          args.push(field, value);
-        }
-        return args;
-      },
-      parseResult: (r) => r as "OK",
-      description: `Set multiple hash fields`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a sorted set ZADD operation
-   */
-  addSortedSetAdd(name: string = "sortedSetAdd"): this {
-    this.operations[name] = {
-      command: "ZADD",
-      buildArgs: (params: TKeyParams & { member: string; score: number }) => [
-        this.keyBuilder(params),
-        params.score,
-        params.member,
-      ],
-      parseResult: (r) => r as number,
-      description: `Add to sorted set`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a sorted set ZREVRANGE operation
-   */
-  addSortedSetGetRange<TResult = string[]>(
-    name: string = "sortedSetGetRange",
-    withScores: boolean = false,
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    const defaultParse = withScores
-      ? (result: unknown) => {
-          const arr = result as string[];
-          const items: Array<{ member: string; score: number }> = [];
-          for (let i = 0; i < arr.length; i += 2) {
-            items.push({ member: arr[i]!, score: parseFloat(arr[i + 1]!) });
-          }
-          return items as unknown as TResult;
-        }
-      : (result: unknown) => result as TResult;
-
-    this.operations[name] = {
-      command: "ZREVRANGE",
-      buildArgs: (params: TKeyParams & { start: number; stop: number }) => {
-        const args: (string | number)[] = [
-          this.keyBuilder(params),
-          params.start,
-          params.stop,
-        ];
-        if (withScores) args.push("WITHSCORES");
-        return args;
-      },
-      parseResult: parseResult ?? defaultParse,
-      description: `Get range from sorted set`,
-    };
-    return this;
-  }
-  addSortedSetGetRangeWithScores<
-    TResult = Array<{ member: string; score: number }>,
-  >(
-    name: string = "sortedSetGetRangeWithScores",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    const defaultParse = (result: unknown) => {
-      const arr = result as string[];
-      const items: Array<{ member: string; score: number }> = [];
-      for (let i = 0; i < arr.length; i += 2) {
-        items.push({ member: arr[i]!, score: parseFloat(arr[i + 1]!) });
-      }
-      return items as unknown as TResult;
-    };
-
-    this.operations[name] = {
-      command: "ZREVRANGE",
-      buildArgs: (params: TKeyParams & { start: number; stop: number }) => [
-        this.keyBuilder(params),
-        params.start,
-        params.stop,
-        "WITHSCORES",
-      ],
-      parseResult: parseResult ?? defaultParse,
-      description: `Get range with scores from sorted set`,
-    };
-    return this;
-  }
-  addSortedSetRemove(name: string = "sortedSetRemove"): this {
-    this.operations[name] = {
-      command: "ZREM",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => r as number,
-      description: `Remove from sorted set`,
-    };
-    return this;
-  }
-  addSortedSetCount(name: string = "sortedSetCount"): this {
-    this.operations[name] = {
-      command: "ZCARD",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => r as number,
-      description: `Get sorted set count`,
-    };
-    return this;
-  }
-  addSortedSetScore(name: string = "sortedSetGetScore"): this {
-    this.operations[name] = {
-      command: "ZSCORE",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => (r === null ? null : parseFloat(r as string)),
-      description: `Get score of member in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetGetRank(name: string = "sortedSetGetRank"): this {
-    this.operations[name] = {
-      command: "ZREVRANK",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => (r === null ? null : (r as number)),
-      description: `Get rank of member in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetIncrementBy(name: string = "sortedSetIncrementBy"): this {
-    this.operations[name] = {
-      command: "ZINCRBY",
-      buildArgs: (params: TKeyParams & { member: string; amount: number }) => [
-        this.keyBuilder(params),
-        params.amount,
-        params.member,
-      ],
-      parseResult: (r) => parseFloat(r as string),
-      description: `Increment score of member in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetRemoveOldest(name: string = "sortedSetRemoveOldest"): this {
-    this.operations[name] = {
-      command: "ZREMRANGEBYRANK",
-      buildArgs: (params: TKeyParams & { count: number }) => [
-        this.keyBuilder(params),
-        0,
-        params.count - 1,
-      ],
-      parseResult: (r) => r as number,
-      description: `Remove oldest members from sorted set`,
-    };
-    return this;
-  }
-  addSortedSetCountInRange(name: string = "sortedSetCountInRange"): this {
-    this.operations[name] = {
-      command: "ZCOUNT",
-      buildArgs: (params: TKeyParams & { min: number; max: number }) => [
-        this.keyBuilder(params),
-        params.min,
-        params.max,
-      ],
-      parseResult: (r) => r as number,
-      description: `Count members in score range in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetTotalCount(name: string = "sortedSetTotalCount"): this {
-    this.operations[name] = {
-      command: "ZCARD",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => r as number,
-      description: `Get total count of members in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetHasMember(name: string = "sortedSetHasMember"): this {
-    this.operations[name] = {
-      command: "ZSCORE",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => r !== null,
-      description: `Check if member exists in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetGetScore(name: string = "sortedSetGetScore"): this {
-    this.operations[name] = {
-      command: "ZSCORE",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => (r === null ? null : parseFloat(r as string)),
-      description: `Get score of member in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetRemoveMember(name: string = "sortedSetRemoveMember"): this {
-    this.operations[name] = {
-      command: "ZREM",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => r as number,
-      description: `Remove member from sorted set`,
-    };
-    return this;
-  }
-  addSortedSetScoreIncrement(name: string = "sortedSetScoreIncrement"): this {
-    this.operations[name] = {
-      command: "ZINCRBY",
-      buildArgs: (params: TKeyParams & { member: string; amount: number }) => [
-        this.keyBuilder(params),
-        params.amount,
-        params.member,
-      ],
-      parseResult: (r) => parseFloat(r as string),
-      description: `Increment score of member in sorted set`,
-    };
-    return this;
-  }
-  addSortedSetGetTopMembers<TResult = Array<{ member: string; score: number }>>(
-    name: string = "sortedSetGetTopMembers",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    const defaultParse = (result: unknown) => {
-      const arr = result as string[];
-      const items: Array<{ member: string; score: number }> = [];
-      for (let i = 0; i < arr.length; i += 2) {
-        items.push({ member: arr[i]!, score: parseFloat(arr[i + 1]!) });
-      }
-      return items as unknown as TResult;
-    };
-
-    this.operations[name] = {
-      command: "ZREVRANGE",
-      buildArgs: (params: TKeyParams & { topN: number }) => [
-        this.keyBuilder(params),
-        0,
-        params.topN - 1,
-        "WITHSCORES",
-      ],
-      parseResult: parseResult ?? defaultParse,
-      description: `Get top N members from sorted set`,
-    };
-    return this;
-  }
-  /**
-   * Add a set SADD operation
-   */
-  addSetAdd(name: string = "setAdd"): this {
-    this.operations[name] = {
-      command: "SADD",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => r as number,
-      description: `Add to set`,
-    };
-    return this;
-  }
-  /**
-   * Add a set SADD multiple operation
-   */
-  addSetAddMultiple(name: string = "setAdd"): this {
-    this.operations[name] = {
-      command: "SADD",
-      buildArgs: (params: TKeyParams & { members: string[] }) => [
-        this.keyBuilder(params),
-        ...params.members,
-      ],
-      parseResult: (r) => r as number,
-      description: `Add multiple to set`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a set SMEMBERS operation
-   */
-  addSetGetAll<TResult = string[]>(
-    name: string = "setGetAll",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    this.operations[name] = {
-      command: "SMEMBERS",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: parseResult ?? ((r) => r as TResult),
-      description: `Get all set members`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a set SISMEMBER operation
-   */
-  addSetIsMember(name: string = "setHas"): this {
-    this.operations[name] = {
-      command: "SISMEMBER",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (r) => (r as number) === 1,
-      description: `Check if member exists in set`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a set SREM operation
-   */
-  addSetRemoveMember(name: string = "setRemoveMember"): this {
-    this.operations[name] = {
-      command: "SREM",
-      buildArgs: (params: TKeyParams & { member: string }) => [
-        this.keyBuilder(params),
-        params.member,
-      ],
-      parseResult: (result) => result as number,
-      description: "Remove member from set",
-    };
-    return this;
-  }
-  /**
-   * Add a set SCARD operation
-   */
-  addSetCountMembers(name: string = "setCountMembers"): this {
-    this.operations[name] = {
-      command: "SCARD",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (result) => result as number,
-      description: "Count members in set",
-    };
-    return this;
-  }
-  addSetGetRandomMember(name: string = "setGetRandomMember"): this {
-    this.operations[name] = {
-      command: "SRANDMEMBER",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (result) => result as string | null,
-      description: "Get random member from set",
-    };
-    return this;
-  }
-
-  /**
-   * Add a list LPUSH operation
-   */
-  addListPush(name: string = "listPush"): this {
-    this.operations[name] = {
-      command: "LPUSH",
-      buildArgs: (params: TKeyParams & { value: string }) => [
-        this.keyBuilder(params),
-        params.value,
-      ],
-      parseResult: (r) => r as number,
-      description: `Push to list`,
-    };
-    return this;
-  }
-
-  /**
-   * Add a list LRANGE operation
-   */
-  addListGetRange<TResult = string[]>(
-    name: string = "listGetRange",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    this.operations[name] = {
-      command: "LRANGE",
-      buildArgs: (params: TKeyParams & { start: number; stop: number }) => [
-        this.keyBuilder(params),
-        params.start,
-        params.stop,
-      ],
-      parseResult: parseResult ?? ((r) => r as TResult),
-      description: `Get range from list`,
-    };
-    return this;
-  }
-  addListSet(name: string = "listSet"): this {
-    this.operations[name] = {
-      command: "LSET",
-      buildArgs: (params: TKeyParams & { index: number; value: string }) => [
-        this.keyBuilder(params),
-        params.index,
-        params.value,
-      ],
-      parseResult: (r) => r as "OK",
-      description: `Set value at index in list`,
-    };
-    return this;
-  }
-  addListRemove(name: string = "listRemove"): this {
-    this.operations[name] = {
-      command: "LREM",
-      buildArgs: (params: TKeyParams & { count: number; value: string }) => [
-        this.keyBuilder(params),
-        params.count,
-        params.value,
-      ],
-      parseResult: (r) => r as number,
-      description: `Remove from list`,
-    };
-    return this;
-  }
-  addListLength(name: string = "listLength"): this {
-    this.operations[name] = {
-      command: "LLEN",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => r as number,
-      description: `Get list length`,
-    };
-    return this;
-  }
-  addListPop(name: string = "listPop"): this {
-    this.operations[name] = {
-      command: "LPOP",
-      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
-      parseResult: (r) => r as string | null,
-      description: `Pop from list`,
-    };
-    return this;
-  }
-  addListTrim(name: string = "listTrim"): this {
-    this.operations[name] = {
-      command: "LTRIM",
-      buildArgs: (params: TKeyParams & { start: number; stop: number }) => [
-        this.keyBuilder(params),
-        params.start,
-        params.stop,
-      ],
-      parseResult: (r) => r as "OK",
-      description: `Trim list`,
-    };
-    return this;
-  }
-  addListIndexOf(name: string = "listIndexOf"): this {
-    this.operations[name] = {
-      command: "LPOS",
-      buildArgs: (params: TKeyParams & { value: string }) => [
-        this.keyBuilder(params),
-        params.value,
-      ],
-      parseResult: (r) => (r === null ? -1 : (r as number)),
-      description: `Get index of value in list`,
-    };
-    return this;
-  }
-  addListInsert(name: string = "listInsert"): this {
-    this.operations[name] = {
-      command: "LINSERT",
-      buildArgs: (
-        params: TKeyParams & {
-          before: boolean;
-          pivot: string;
-          value: string;
-        }
-      ) => [
-        this.keyBuilder(params),
-        params.before ? "BEFORE" : "AFTER",
-        params.pivot,
-        params.value,
-      ],
-      parseResult: (r) => r as number,
-      description: `Insert into list`,
-    };
-    return this;
-  }
-  addListGetByIndex<TResult = string | null>(
-    name: string = "listGetByIndex",
-    parseResult?: (result: unknown) => TResult
-  ): this {
-    this.operations[name] = {
-      command: "LINDEX",
-      buildArgs: (params: TKeyParams & { index: number }) => [
-        this.keyBuilder(params),
-        params.index,
-      ],
-      parseResult: parseResult ?? ((r) => r as TResult),
-      description: `Get value by index from list`,
-    };
-    return this;
-  }
-  addCustomOperation<TParams extends Record<string, unknown>, TResult>(
-    name: string,
-    operation: CacheOperation<TParams, TResult>
-  ): this {
-    this.operations[name] = operation;
-    return this;
-  }
-
-  /**
-   * Get all operations
-   */
-  getOperations(): Record<string, CacheOperation<any, any>> {
-    return { ...this.operations };
-  }
-}
-
-/**
- * Schema builder class
- */
-export class SchemaBuilder<TKeyParams extends Record<string, unknown>> {
-  private config: Partial<SchemaBuilderConfig> = {};
-  private keyBuilder!: KeyBuilder<TKeyParams>;
-  private operationBuilder!: OperationBuilder<TKeyParams>;
-
-  /**
-   * Set schema name
-   */
-  name(name: string): this {
-    this.config.name = name;
-    return this;
-  }
-
-  /**
-   * Set key pattern (e.g., 'user:profile:{userId}')
-   */
-  keyPattern(pattern: string): this {
-    this.config.keyPattern = pattern;
-    this.keyBuilder = createKeyBuilder<TKeyParams>(pattern);
-    this.operationBuilder = new OperationBuilder(this.keyBuilder);
-    return this;
-  }
-
-  /**
-   * Set data structure type
-   */
-  structure(structure: CacheStructure): this {
-    this.config.structure = structure;
-    return this;
-  }
-
-  /**
-   * Set TTL in seconds
-   */
-  ttl(seconds: number): this {
-    this.config.ttl = seconds;
-    return this;
-  }
-
-  /**
-   * Set max size (for lists, sets, sorted sets)
-   */
-  maxSize(size: number): this {
-    this.config.maxSize = size;
-    return this;
-  }
-
-  /**
-   * Set description
-   */
-  description(desc: string): this {
-    this.config.description = desc;
-    return this;
-  }
-
-  /**
-   * Set namespace
-   */
-  namespace(ns: string): this {
-    this.config.namespace = ns;
-    return this;
-  }
-
-  /**
-   * Set version
-   */
-  version(v: number): this {
-    this.config.version = v;
-    return this;
-  }
-
-  /**
-   * Set tags
-   */
-  tags(...tags: string[]): this {
-    this.config.tags = tags;
-    return this;
-  }
-
-  /**
-   * Configure operations
-   */
-  operations(configure: (builder: OperationBuilder<TKeyParams>) => void): this {
-    if (!this.operationBuilder) {
-      throw new Error("Must set keyPattern before configuring operations");
-    }
-    configure(this.operationBuilder);
-    return this;
-  }
-
-  /**
-   * Build the schema
-   */
-  build(): CacheSchema<TKeyParams, Record<string, CacheOperation<any, any>>> {
-    if (!this.config.name) throw new Error("Schema name is required");
-    if (!this.config.keyPattern) throw new Error("Key pattern is required");
-    if (!this.config.structure) throw new Error("Structure is required");
-    if (!this.config.ttl) throw new Error("TTL is required");
-
-    return {
-      name: this.config.name,
-      key: this.keyBuilder as (params: Partial<TKeyParams>) => string,
-      structure: this.config.structure,
-      ttl: this.config.ttl,
-      maxSize: this.config.maxSize,
-      description: this.config.description,
-      namespace: this.config.namespace,
-      version: this.config.version,
-      tags: this.config.tags,
-      operations: this.operationBuilder.getOperations(),
-    };
-  }
-}
-
-/**
- * Create a new schema builder (legacy - uses OperationBuilder without full type inference)
- * @deprecated Use createTypedSchema for better type inference of operations
- */
-export function createSchema<
-  TKeyParams extends Record<string, unknown>,
->(): SchemaBuilder<TKeyParams> {
-  return new SchemaBuilder<TKeyParams>();
-}
-
-// =============================================
 // TYPED SCHEMA BUILDER
 // =============================================
 
@@ -2340,7 +1411,7 @@ export class TypedSchemaBuilderWithOperations<
 
     return {
       name: this.config.name,
-      key: this.keyBuilder as (params: Partial<TKeyParams>) => string,
+      key: this.keyBuilder as (params: TKeyParams) => string,
       structure: this.config.structure,
       ttl: this.config.ttl,
       maxSize: this.config.maxSize,
@@ -2397,14 +1468,14 @@ export function createTypedSchema<
 export function createKeyValueSchema<
   TKeyParams extends Record<string, unknown>,
 >(name: string, keyPattern: string, ttl: number) {
-  return createSchema<TKeyParams>()
+  return createTypedSchema<TKeyParams>()
     .name(name)
     .keyPattern(keyPattern)
     .structure("STRING")
     .ttl(ttl)
-    .operations((ops) => {
-      ops.addGet().addSet(undefined, ttl).addDelete().addExists().addTtl();
-    })
+    .operations((ops) =>
+      ops.addGet().addSet(undefined, ttl).addDelete().addExists().addTtl()
+    )
     .build();
 }
 
@@ -2416,12 +1487,12 @@ export function createHashSchema<TKeyParams extends Record<string, unknown>>(
   keyPattern: string,
   ttl: number
 ) {
-  return createSchema<TKeyParams>()
+  return createTypedSchema<TKeyParams>()
     .name(name)
     .keyPattern(keyPattern)
     .structure("HASH")
     .ttl(ttl)
-    .operations((ops) => {
+    .operations((ops) =>
       ops
         .addHashGetAll()
         .addHashGet()
@@ -2430,8 +1501,8 @@ export function createHashSchema<TKeyParams extends Record<string, unknown>>(
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl();
-    })
+        .addTtl()
+    )
     .build();
 }
 
@@ -2441,7 +1512,7 @@ export function createHashSchema<TKeyParams extends Record<string, unknown>>(
 export function createSortedSetSchema<
   TKeyParams extends Record<string, unknown>,
 >(name: string, keyPattern: string, ttl: number, maxSize?: number) {
-  const builder = createSchema<TKeyParams>()
+  const builder = createTypedSchema<TKeyParams>()
     .name(name)
     .keyPattern(keyPattern)
     .structure("SORTED_SET")
@@ -2452,7 +1523,7 @@ export function createSortedSetSchema<
   }
 
   return builder
-    .operations((ops) => {
+    .operations((ops) =>
       ops
         .addSortedSetAdd()
         .addSortedSetGetRange()
@@ -2460,8 +1531,8 @@ export function createSortedSetSchema<
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl();
-    })
+        .addTtl()
+    )
     .build();
 }
 
@@ -2473,12 +1544,12 @@ export function createSetSchema<TKeyParams extends Record<string, unknown>>(
   keyPattern: string,
   ttl: number
 ) {
-  return createSchema<TKeyParams>()
+  return createTypedSchema<TKeyParams>()
     .name(name)
     .keyPattern(keyPattern)
     .structure("SET")
     .ttl(ttl)
-    .operations((ops) => {
+    .operations((ops) =>
       ops
         .addSetAdd()
         .addSetGetAll()
@@ -2486,8 +1557,8 @@ export function createSetSchema<TKeyParams extends Record<string, unknown>>(
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl();
-    })
+        .addTtl()
+    )
     .build();
 }
 
@@ -2499,12 +1570,12 @@ export function createCounterSchema<TKeyParams extends Record<string, unknown>>(
   keyPattern: string,
   ttl: number
 ) {
-  return createSchema<TKeyParams>()
+  return createTypedSchema<TKeyParams>()
     .name(name)
     .keyPattern(keyPattern)
     .structure("STRING")
     .ttl(ttl)
-    .operations((ops) => {
+    .operations((ops) =>
       ops
         .addGet()
         .addIncrement()
@@ -2512,7 +1583,7 @@ export function createCounterSchema<TKeyParams extends Record<string, unknown>>(
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl();
-    })
+        .addTtl()
+    )
     .build();
 }

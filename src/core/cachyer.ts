@@ -153,7 +153,7 @@ export class Cachyer {
       throw new CacheError(
         "Failed to connect to cache backend",
         CacheErrorCode.CONNECTION_ERROR,
-        { cause: error as Error }
+        { cause: error as Error },
       );
     }
   }
@@ -205,8 +205,8 @@ export class Cachyer {
       pipeline: typeof this._adapter.executePipeline === "function",
       transactions: typeof this._adapter.executeTransaction === "function",
       pubsub: typeof this._adapter.publish === "function",
-      streams: false,
-      bloomFilter: false,
+      streams: typeof this._adapter.xadd === "function",
+      bloomFilter: typeof this._adapter.bfAdd === "function",
     };
   }
 
@@ -252,7 +252,7 @@ export class Cachyer {
   async execute<TParams extends Record<string, unknown>, TResult>(
     operation: CacheOperation<TParams, TResult>,
     params: TParams,
-    options?: ExecuteOptions
+    options?: ExecuteOptions,
   ): Promise<TResult> {
     const opts = { ...this.config.defaultOptions, ...options };
     let lastError: Error | undefined;
@@ -264,14 +264,14 @@ export class Cachyer {
         const prefixedArgs = this.applyKeyPrefix(args, operation.command);
 
         this.config.logger.debug(`Executing ${operation.command}`, {
-          args: prefixedArgs.slice(0, 3),
+          args: prefixedArgs,
           attempt: retries + 1,
         });
 
         const rawResult = await this.executeCommand(
           operation.command,
           prefixedArgs,
-          opts.timeout ?? 5000
+          opts.timeout ?? 5000,
         );
 
         const result = operation.parseResult
@@ -303,7 +303,7 @@ export class Cachyer {
       throw new CacheError(
         `Operation ${operation.command} failed after ${retries} retries`,
         CacheErrorCode.COMMAND_ERROR,
-        { command: operation.command, cause: lastError }
+        { command: operation.command, cause: lastError },
       );
     }
 
@@ -316,7 +316,7 @@ export class Cachyer {
   async executeWrapped<TParams extends Record<string, unknown>, TResult>(
     operation: CacheOperation<TParams, TResult>,
     params: TParams,
-    options?: ExecuteOptions
+    options?: ExecuteOptions,
   ): Promise<ExecuteResult<TResult>> {
     const startTime = Date.now();
     let retries = 0;
@@ -354,12 +354,12 @@ export class Cachyer {
     script: ScriptDefinition<any, any, TResult>,
     keys: string[],
     args: (string | number)[],
-    _options?: ExecuteOptions
+    _options?: ExecuteOptions,
   ): Promise<TResult> {
     if (typeof this.adapter.executeScript !== "function") {
       throw new CacheError(
         "Scripting is not supported by this adapter",
-        CacheErrorCode.ADAPTER_NOT_SUPPORTED
+        CacheErrorCode.ADAPTER_NOT_SUPPORTED,
       );
     }
 
@@ -371,7 +371,7 @@ export class Cachyer {
       throw new CacheError(
         "Script execution failed",
         CacheErrorCode.SCRIPT_ERROR,
-        { cause: error as Error }
+        { cause: error as Error },
       );
     }
   }
@@ -383,7 +383,7 @@ export class Cachyer {
     if (typeof this.adapter.loadScript !== "function") {
       throw new CacheError(
         "Scripting is not supported by this adapter",
-        CacheErrorCode.ADAPTER_NOT_SUPPORTED
+        CacheErrorCode.ADAPTER_NOT_SUPPORTED,
       );
     }
 
@@ -405,11 +405,7 @@ export class Cachyer {
       return this.executePipelineFallback(entries);
     }
 
-    const prefixedEntries = entries.map((entry) => ({
-      ...entry,
-      params: this.applyKeyPrefixToParams(entry.params),
-    }));
-
+    const prefixedEntries = this.prefixPipelineEntries(entries);
     return this.adapter.executePipeline(prefixedEntries);
   }
 
@@ -420,15 +416,11 @@ export class Cachyer {
     if (typeof this.adapter.executeTransaction !== "function") {
       throw new CacheError(
         "Transactions are not supported by this adapter",
-        CacheErrorCode.ADAPTER_NOT_SUPPORTED
+        CacheErrorCode.ADAPTER_NOT_SUPPORTED,
       );
     }
 
-    const prefixedEntries = entries.map((entry) => ({
-      ...entry,
-      params: this.applyKeyPrefixToParams(entry.params),
-    }));
-
+    const prefixedEntries = this.prefixPipelineEntries(entries);
     return this.adapter.executeTransaction(prefixedEntries);
   }
 
@@ -449,7 +441,7 @@ export class Cachyer {
   async set(
     key: string,
     value: string,
-    options?: CacheSetOptions
+    options?: CacheSetOptions,
   ): Promise<"OK" | null> {
     return this._adapter.set(this.prefixKey(key), value, options);
   }
@@ -506,12 +498,65 @@ export class Cachyer {
   }
 
   /**
+   * Delete hash fields
+   */
+  async hdel(key: string, ...fields: string[]): Promise<number> {
+    return this._adapter.hdel(this.prefixKey(key), ...fields);
+  }
+
+  /**
+   * Check if hash field exists
+   */
+  async hexists(key: string, field: string): Promise<0 | 1> {
+    return this._adapter.hexists(this.prefixKey(key), field);
+  }
+
+  /**
+   * Increment hash field by integer
+   */
+  async hincrby(
+    key: string,
+    field: string,
+    increment: number,
+  ): Promise<number> {
+    return this._adapter.hincrby(this.prefixKey(key), field, increment);
+  }
+
+  /**
+   * Get hash field count
+   */
+  async hlen(key: string): Promise<number> {
+    return this._adapter.hlen(this.prefixKey(key));
+  }
+
+  /**
+   * Remove from set
+   */
+  async srem(key: string, ...members: string[]): Promise<number> {
+    return this._adapter.srem(this.prefixKey(key), ...members);
+  }
+
+  /**
+   * Check if member exists in set
+   */
+  async sismember(key: string, member: string): Promise<0 | 1> {
+    return this._adapter.sismember(this.prefixKey(key), member);
+  }
+
+  /**
+   * Get set size
+   */
+  async scard(key: string): Promise<number> {
+    return this._adapter.scard(this.prefixKey(key));
+  }
+
+  /**
    * Add to sorted set
    */
   async zadd(
     key: string,
     scoreMembers: Array<{ score: number; member: string }>,
-    options?: { nx?: boolean; xx?: boolean }
+    options?: { nx?: boolean; xx?: boolean },
   ): Promise<number> {
     return this._adapter.zadd(this.prefixKey(key), scoreMembers, options);
   }
@@ -523,7 +568,7 @@ export class Cachyer {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>> {
     return this._adapter.zrange(this.prefixKey(key), start, stop, options);
   }
@@ -535,9 +580,48 @@ export class Cachyer {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>> {
     return this._adapter.zrevrange(this.prefixKey(key), start, stop, options);
+  }
+
+  /**
+   * Remove from sorted set
+   */
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    return this._adapter.zrem(this.prefixKey(key), ...members);
+  }
+
+  /**
+   * Get score of member in sorted set
+   */
+  async zscore(key: string, member: string): Promise<string | null> {
+    return this._adapter.zscore(this.prefixKey(key), member);
+  }
+
+  /**
+   * Get rank of member in sorted set
+   */
+  async zrank(key: string, member: string): Promise<number | null> {
+    return this._adapter.zrank(this.prefixKey(key), member);
+  }
+
+  /**
+   * Get sorted set size
+   */
+  async zcard(key: string): Promise<number> {
+    return this._adapter.zcard(this.prefixKey(key));
+  }
+
+  /**
+   * Increment member score in sorted set
+   */
+  async zincrby(
+    key: string,
+    increment: number,
+    member: string,
+  ): Promise<string> {
+    return this._adapter.zincrby(this.prefixKey(key), increment, member);
   }
 
   /**
@@ -580,7 +664,7 @@ export class Cachyer {
    */
   async scan(
     cursor: number,
-    options?: CacheScanOptions
+    options?: CacheScanOptions,
   ): Promise<{ cursor: number; keys: string[] }> {
     const result = await this._adapter.scan(cursor, {
       ...options,
@@ -604,7 +688,7 @@ export class Cachyer {
     if (typeof this.adapter.publish !== "function") {
       throw new CacheError(
         "Pub/Sub is not supported by this adapter",
-        CacheErrorCode.ADAPTER_NOT_SUPPORTED
+        CacheErrorCode.ADAPTER_NOT_SUPPORTED,
       );
     }
 
@@ -616,12 +700,12 @@ export class Cachyer {
    */
   async subscribe(
     channel: string,
-    callback: (message: string, channel: string) => void
+    callback: (message: string, channel: string) => void,
   ): Promise<void> {
     if (typeof this.adapter.subscribe !== "function") {
       throw new CacheError(
         "Pub/Sub is not supported by this adapter",
-        CacheErrorCode.ADAPTER_NOT_SUPPORTED
+        CacheErrorCode.ADAPTER_NOT_SUPPORTED,
       );
     }
 
@@ -677,7 +761,7 @@ export class Cachyer {
 
   private applyKeyPrefix(
     args: (string | number)[],
-    command: string
+    command: string,
   ): (string | number)[] {
     // Commands where the first argument is a key
     const singleKeyCommands = [
@@ -746,17 +830,23 @@ export class Cachyer {
     return args;
   }
 
-  private applyKeyPrefixToParams(
-    params: Record<string, unknown>
-  ): Record<string, unknown> {
-    // This is a simplified version - in reality, you'd need to know which params are keys
-    return params;
+  private prefixPipelineEntries(entries: PipelineEntry[]): PipelineEntry[] {
+    return entries.map((entry) => ({
+      ...entry,
+      operation: {
+        ...entry.operation,
+        buildArgs: (params: any) => {
+          const args = entry.operation.buildArgs(params);
+          return this.applyKeyPrefix(args, entry.operation.command);
+        },
+      },
+    }));
   }
 
   private async executeCommand(
     command: string,
     args: (string | number)[],
-    timeout: number
+    timeout: number,
   ): Promise<unknown> {
     const methodName = command.toLowerCase() as keyof CacheAdapter;
     const method = this._adapter[methodName];
@@ -764,7 +854,7 @@ export class Cachyer {
     if (typeof method !== "function") {
       throw new CacheError(
         `Command ${command} is not supported by this adapter`,
-        CacheErrorCode.ADAPTER_NOT_SUPPORTED
+        CacheErrorCode.ADAPTER_NOT_SUPPORTED,
       );
     }
 
@@ -782,7 +872,7 @@ export class Cachyer {
   }
 
   private async executePipelineFallback(
-    entries: PipelineEntry[]
+    entries: PipelineEntry[],
   ): Promise<PipelineResult> {
     const startTime = Date.now();
     const results: Array<{ success: boolean; data?: any; error?: Error }> = [];

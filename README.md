@@ -169,7 +169,7 @@ await cache.set("key", "value");
 Cachyer allows you to define type-safe cache schemas:
 
 ```typescript
-import { createSchema, TTL } from "cachyer";
+import { createTypedSchema, TTL } from "cachyer";
 
 // Define your parameter types
 interface UserProfileParams {
@@ -177,26 +177,26 @@ interface UserProfileParams {
 }
 
 // Create a schema
-const userProfileSchema = createSchema<UserProfileParams>()
+const userProfileSchema = createTypedSchema<UserProfileParams>()
   .name("userProfile")
   .keyPattern("user:profile:{userId}")
   .structure("HASH")
   .ttl(TTL.ONE_HOUR)
   .description("User profile cache")
-  .operations((ops) => {
+  .operations((ops) =>
     ops
-      .addHashGetAll<UserProfile>()
+      .addHashGetAll()
       .addHashSet()
       .addHashSetMultiple()
       .addDelete()
       .addExists()
       .addExpire()
-      .addTtl();
-  })
+      .addTtl(),
+  )
   .build();
 
 // Use with executor
-const result = await cache.execute(userProfileSchema.operations.getAll, {
+const result = await cache.execute(userProfileSchema.operations.hashGetAll, {
   userId: "123",
 });
 ```
@@ -216,14 +216,14 @@ import {
 const sessionSchema = createKeyValueSchema<{ sessionId: string }>(
   "session",
   "session:{sessionId}",
-  3600 // TTL in seconds
+  3600, // TTL in seconds
 );
 
 // Hash for complex objects
 const userSchema = createHashSchema<{ userId: string }>(
   "user",
   "user:{userId}",
-  7200
+  7200,
 );
 
 // Sorted set for feeds
@@ -231,14 +231,14 @@ const feedSchema = createSortedSetSchema<{ userId: string }>(
   "feed",
   "user:feed:{userId}",
   3600,
-  500 // maxSize
+  500, // maxSize
 );
 
 // Set for relationships
 const followersSchema = createSetSchema<{ userId: string }>(
   "followers",
   "user:followers:{userId}",
-  86400
+  86400,
 );
 
 // Counter for rate limiting
@@ -254,7 +254,7 @@ For advanced use cases where the built-in operations don't cover your needs, you
 
 ```typescript
 import type { CacheOperation } from "cachyer";
-import { createSchema, createKeyBuilder } from "cachyer";
+import { createTypedSchema, createKeyBuilder } from "cachyer";
 
 // Define your key params and operation params
 interface GlobalTrendingParams {
@@ -269,7 +269,7 @@ interface GlobalTrendingUpdateParams {
 // Create a static key builder for global trending
 const GlobalKeys = {
   trendingPosts: createKeyBuilder<GlobalTrendingParams>(
-    "global:trending:posts"
+    "global:trending:posts",
   ),
 };
 
@@ -290,18 +290,18 @@ const globalTrendingUpdateIfHigher: CacheOperation<
 };
 
 // Use it in a schema
-const trendingSchema = createSchema<GlobalTrendingParams>()
+const trendingSchema = createTypedSchema<GlobalTrendingParams>()
   .name("globalTrending")
   .keyPattern("global:trending:posts")
   .structure("SORTED_SET")
   .ttl(3600)
-  .operations((ops) => {
+  .operations((ops) =>
     ops
       .addSortedSetGetRange("getTop", false)
       .addSortedSetGetRange("getTopWithScores", true)
       // Add custom operation for conditional updates
-      .addCustomOperation("updateIfHigher", globalTrendingUpdateIfHigher);
-  })
+      .addCustomOperation("updateIfHigher", globalTrendingUpdateIfHigher),
+  )
   .build();
 
 // Execute the custom operation
@@ -408,7 +408,7 @@ if (!result.allowed) {
 // Sliding window (more accurate)
 const slidingResult = await rateLimiter.checkSlidingWindow(
   "user123",
-  "api:create"
+  "api:create",
 );
 
 // IP-based rate limiting
@@ -540,7 +540,7 @@ const keys = createKeyPatterns(
       user: { pattern: "session:user:{userId}" },
     },
   },
-  { prefix: "myapp" }
+  { prefix: "myapp" },
 );
 
 // Type-safe usage with autocomplete

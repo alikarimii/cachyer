@@ -134,7 +134,7 @@ export class RedisAdapter implements CacheAdapter {
   async set(
     key: string,
     value: string,
-    options?: CacheSetOptions
+    options?: CacheSetOptions,
   ): Promise<"OK" | null> {
     const args: (string | number)[] = [key, value];
 
@@ -209,7 +209,7 @@ export class RedisAdapter implements CacheAdapter {
 
   async hmset(
     key: string,
-    fieldValues: Record<string, string | number>
+    fieldValues: Record<string, string | number>,
   ): Promise<"OK"> {
     this.recordOperation("HMSET");
     return this.client.hmset(key, fieldValues);
@@ -243,7 +243,7 @@ export class RedisAdapter implements CacheAdapter {
   async hincrby(
     key: string,
     field: string,
-    increment: number
+    increment: number,
   ): Promise<number> {
     this.recordOperation("HINCRBY");
     return this.client.hincrby(key, field, increment);
@@ -349,7 +349,7 @@ export class RedisAdapter implements CacheAdapter {
   async zadd(
     key: string,
     scoreMembers: Array<{ score: number; member: string }>,
-    options?: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean }
+    options?: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean },
   ): Promise<number> {
     this.recordOperation("ZADD");
 
@@ -391,7 +391,7 @@ export class RedisAdapter implements CacheAdapter {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>> {
     this.recordOperation("ZRANGE");
 
@@ -414,7 +414,7 @@ export class RedisAdapter implements CacheAdapter {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>> {
     this.recordOperation("ZREVRANGE");
 
@@ -423,7 +423,7 @@ export class RedisAdapter implements CacheAdapter {
         key,
         start,
         stop,
-        "WITHSCORES"
+        "WITHSCORES",
       );
       const parsed: Array<{ member: string; score: number }> = [];
       for (let i = 0; i < result.length; i += 2) {
@@ -446,7 +446,7 @@ export class RedisAdapter implements CacheAdapter {
   async zcount(
     key: string,
     min: number | string,
-    max: number | string
+    max: number | string,
   ): Promise<number> {
     this.recordOperation("ZCOUNT");
     return this.client.zcount(key, min, max);
@@ -455,7 +455,7 @@ export class RedisAdapter implements CacheAdapter {
   async zincrby(
     key: string,
     increment: number,
-    member: string
+    member: string,
   ): Promise<string> {
     this.recordOperation("ZINCRBY");
     return this.client.zincrby(key, increment, member);
@@ -464,7 +464,7 @@ export class RedisAdapter implements CacheAdapter {
   async zremrangebyrank(
     key: string,
     start: number,
-    stop: number
+    stop: number,
   ): Promise<number> {
     this.recordOperation("ZREMRANGEBYRANK");
     return this.client.zremrangebyrank(key, start, stop);
@@ -473,7 +473,7 @@ export class RedisAdapter implements CacheAdapter {
   async zremrangebyscore(
     key: string,
     min: number | string,
-    max: number | string
+    max: number | string,
   ): Promise<number> {
     this.recordOperation("ZREMRANGEBYSCORE");
     return this.client.zremrangebyscore(key, min, max);
@@ -535,7 +535,7 @@ export class RedisAdapter implements CacheAdapter {
 
   async scan(
     cursor: number,
-    options?: CacheScanOptions
+    options?: CacheScanOptions,
   ): Promise<{ cursor: number; keys: string[] }> {
     this.recordOperation("SCAN");
 
@@ -590,7 +590,7 @@ export class RedisAdapter implements CacheAdapter {
   async executeScript<TResult>(
     script: ScriptDefinition<any, any, TResult>,
     keys: string[],
-    args: (string | number)[]
+    args: (string | number)[],
   ): Promise<TResult> {
     this.recordOperation("EVAL");
 
@@ -603,7 +603,7 @@ export class RedisAdapter implements CacheAdapter {
           hash,
           keys.length,
           ...keys,
-          ...args.map(String)
+          ...args.map(String),
         );
 
         return script.parseResult
@@ -622,7 +622,7 @@ export class RedisAdapter implements CacheAdapter {
       script.script,
       keys.length,
       ...keys,
-      ...args.map(String)
+      ...args.map(String),
     );
 
     // Cache the hash for future calls
@@ -712,7 +712,7 @@ export class RedisAdapter implements CacheAdapter {
   }
 
   async executeTransaction(
-    entries: PipelineEntry[]
+    entries: PipelineEntry[],
   ): Promise<TransactionResult> {
     const startTime = Date.now();
     const multi = this.client.multi();
@@ -777,7 +777,7 @@ export class RedisAdapter implements CacheAdapter {
 
   async subscribe(
     channel: string,
-    callback: (message: string, channel: string) => void
+    callback: (message: string, channel: string) => void,
   ): Promise<void> {
     await this.client.subscribe(channel);
     this.client.on("message", (ch, msg) => {
@@ -831,13 +831,13 @@ export class RedisAdapter implements CacheAdapter {
   async xadd(
     key: string,
     id: string | "*",
-    fields: Record<string, string>
+    fields: Record<string, string>,
   ): Promise<string> {
     this.recordOperation("XADD");
     return this.client.xadd(
       key,
       id,
-      ...Object.entries(fields).flat()
+      ...Object.entries(fields).flat(),
     ) as Promise<string>;
   }
 
@@ -883,7 +883,7 @@ export class RedisAdapter implements CacheAdapter {
     key: string,
     start: string,
     end: string,
-    count?: number
+    count?: number,
   ): Promise<Array<{ id: string; fields: Record<string, string> }>> {
     this.recordOperation("XRANGE");
 
@@ -906,7 +906,7 @@ export class RedisAdapter implements CacheAdapter {
     key: string,
     end: string,
     start: string,
-    count?: number
+    count?: number,
   ): Promise<Array<{ id: string; fields: Record<string, string> }>> {
     this.recordOperation("XREVRANGE");
 
@@ -934,7 +934,7 @@ export class RedisAdapter implements CacheAdapter {
     key: string,
     strategy: "MAXLEN" | "MINID",
     threshold: number | string,
-    approximate?: boolean
+    approximate?: boolean,
   ): Promise<number> {
     this.recordOperation("XTRIM");
 
@@ -961,14 +961,14 @@ export class RedisAdapter implements CacheAdapter {
   async bfReserve(
     key: string,
     errorRate: number,
-    capacity: number
+    capacity: number,
   ): Promise<"OK"> {
     this.recordOperation("BF.RESERVE");
     const result = await this.client.call(
       "BF.RESERVE",
       key,
       errorRate,
-      capacity
+      capacity,
     );
     return result as "OK";
   }

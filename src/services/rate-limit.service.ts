@@ -141,13 +141,13 @@ export class RateLimitService {
     this.config = {
       keyPrefix: config?.keyPrefix ?? "ratelimit",
       defaultConfig: config?.defaultConfig ?? DefaultRateLimitConfigs.default!,
-      endpoints: config?.endpoints ?? DefaultRateLimitConfigs,
+      endpoints: config?.endpoints ?? {},
     };
   }
 
   async check(
     identifier: string,
-    endpoint: string
+    endpoint: string,
   ): Promise<RateLimitResult & { headers: RateLimitHeaders }> {
     const cfg = this.getConfig(endpoint);
     const key = this.buildKey(identifier, endpoint);
@@ -161,12 +161,12 @@ export class RateLimitService {
 
   private async checkWithScript(
     key: string,
-    config: RateLimitConfig
+    config: RateLimitConfig,
   ): Promise<RateLimitResult & { headers: RateLimitHeaders }> {
     const result = await this.adapter.executeScript!(
       rateLimitCheckScript,
       [key],
-      [config.maxRequests, config.windowSeconds]
+      [config.maxRequests, config.windowSeconds],
     );
 
     const rateLimitResult: RateLimitResult = {
@@ -184,7 +184,7 @@ export class RateLimitService {
 
   private async checkBasic(
     key: string,
-    config: RateLimitConfig
+    config: RateLimitConfig,
   ): Promise<RateLimitResult & { headers: RateLimitHeaders }> {
     const current = await this.adapter.get(key);
     const count = current ? parseInt(current, 10) : 0;
@@ -216,7 +216,7 @@ export class RateLimitService {
   async checkSlidingWindow(
     identifier: string,
     endpoint: string,
-    config?: RateLimitConfig
+    config?: RateLimitConfig,
   ): Promise<RateLimitResult & { headers: RateLimitHeaders }> {
     const cfg = config ?? this.getConfig(endpoint);
     const key = `${this.config.keyPrefix}:sliding:${endpoint}:${identifier}`;
@@ -229,7 +229,7 @@ export class RateLimitService {
     const result = await this.adapter.executeScript(
       slidingWindowRateLimitScript,
       [key],
-      [cfg.maxRequests, cfg.windowSeconds * 1000, Date.now(), requestId]
+      [cfg.maxRequests, cfg.windowSeconds * 1000, Date.now(), requestId],
     );
 
     const rateLimitResult: RateLimitResult = {
@@ -249,7 +249,7 @@ export class RateLimitService {
 
   async checkIP(
     ipAddress: string,
-    config?: RateLimitConfig
+    config?: RateLimitConfig,
   ): Promise<RateLimitResult & { headers: RateLimitHeaders }> {
     const cfg = config ?? { maxRequests: 100, windowSeconds: 60 };
     const key = `${this.config.keyPrefix}:ip:${ipAddress}`;
@@ -263,7 +263,7 @@ export class RateLimitService {
 
   async getStatus(
     identifier: string,
-    endpoint: string
+    endpoint: string,
   ): Promise<{ count: number; ttl: number; remaining: number }> {
     const cfg = this.getConfig(endpoint);
     const key = this.buildKey(identifier, endpoint);
@@ -292,7 +292,7 @@ export class RateLimitService {
 
   private generateHeaders(
     result: RateLimitResult,
-    limit: number
+    limit: number,
   ): RateLimitHeaders {
     const headers: RateLimitHeaders = {
       "X-RateLimit-Limit": String(limit),
@@ -310,7 +310,7 @@ export class RateLimitService {
 
 export function createRateLimitService(
   adapter: CacheAdapter,
-  config?: RateLimitServiceConfig
+  config?: RateLimitServiceConfig,
 ): RateLimitService {
   return new RateLimitService(adapter, config);
 }

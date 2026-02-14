@@ -36,3 +36,4 @@ yarn-error.log*
 *.tgz
 # OS
 Thumbs.db
+CLAUDE.md

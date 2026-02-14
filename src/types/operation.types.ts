@@ -46,7 +46,7 @@ export interface CacheSchema<
   readonly name: string
 
   /** Function to generate the cache key from parameters */
-  readonly key: (params: Partial<TKeyParams>) => string
+  readonly key: (params: TKeyParams) => string
 
   /** The data structure used for this cache */
   readonly structure: CacheStructure

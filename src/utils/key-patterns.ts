@@ -37,7 +37,7 @@ const defaultConfig: Required<KeyPatternConfig> = {
  */
 export function createKeyBuilder<TParams extends Record<string, unknown>>(
   pattern: string,
-  config?: KeyPatternConfig
+  config?: KeyPatternConfig,
 ): KeyBuilder<TParams> {
   const { prefix, separator, validate } = { ...defaultConfig, ...config };
 
@@ -72,7 +72,7 @@ export function createKeyBuilder<TParams extends Record<string, unknown>>(
  */
 export function createStaticKey(
   key: string,
-  config?: KeyPatternConfig
+  config?: KeyPatternConfig,
 ): StaticKeyBuilder {
   const { prefix, separator } = { ...defaultConfig, ...config };
   const fullKey = prefix ? `${prefix}${separator}${key}` : key;
@@ -85,7 +85,7 @@ export function createStaticKey(
  */
 export function parseKey(
   key: string,
-  separator: string = ":"
+  separator: string = ":",
 ): {
   domain: string;
   type: string;
@@ -113,7 +113,7 @@ export function validateKey(key: string, expectedDomain: string): boolean {
 export function createKeyPattern(
   domain: string,
   type?: string,
-  separator: string = ":"
+  separator: string = ":",
 ): string {
   if (type) {
     return `${domain}${separator}${type}${separator}*`;
@@ -140,15 +140,15 @@ export function createKeyPatterns<
 >(
   definitions: {
     [K in keyof T]: {
-      [P in keyof T[K]]: T[K][P] extends () => string
+      [P in keyof T[K]]: T[K][P] extends string
         ? string
         : { pattern: string; params?: Record<string, unknown> };
     };
   },
-  config?: KeyPatternConfig
+  config?: KeyPatternConfig,
 ): {
   [K in keyof T]: {
-    [P in keyof T[K]]: T[K][P] extends () => string
+    [P in keyof T[K]]: T[K][P] extends string
       ? StaticKeyBuilder
       : KeyBuilder<
           T[K][P] extends { params: infer U } ? U : Record<string, unknown>

@@ -173,7 +173,7 @@ export class SocialMediaCache {
         "member" in result[0]
       ) {
         return (result as Array<{ member: string; score: number }>).map(
-          (item) => item.member
+          (item) => item.member,
         );
       }
     }
@@ -287,7 +287,7 @@ export class SocialMediaCache {
 
   async getUserActivities(
     userId: string,
-    count: number = 50
+    count: number = 50,
   ): Promise<Array<Record<string, unknown>>> {
     const key = patterns.activity.user({ userId });
     const adapter = (this.cachyer as any).adapter;

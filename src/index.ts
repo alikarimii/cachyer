@@ -46,23 +46,29 @@ export * from "./utils";
 // CONVENIENCE FACTORIES
 // =============================================
 
-import type { Redis } from "ioredis";
 import { createMemoryAdapter } from "./adapters/memory";
 import { createRedisAdapter } from "./adapters/redis";
 import { Cachyer } from "./core/cachyer";
 
 /**
  * Create a Cachyer instance with Redis
+ * @param options Configuration options for Redis connection and Cachyer
+ * @return Cachyer instance
+ * @param options.keyPrefix Optional key prefix
+ * @param options.defaultTtl Optional default TTL for cache entries
+ * @param options.connectionOptions check ioredis documentation for Redis constructor options
  */
-export function createRedisCachyer(
-  client: Redis,
-  options?: {
-    keyPrefix?: string;
-    defaultTtl?: number;
-  }
-): Cachyer {
+export function createRedisCachyer(options?: {
+  keyPrefix?: string;
+  defaultTtl?: number;
+  connectionOptions?: any;
+}): Cachyer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Redis } = require("ioredis") as typeof import("ioredis");
   return new Cachyer({
-    adapter: createRedisAdapter({ client }),
+    adapter: createRedisAdapter({
+      client: new Redis(options?.connectionOptions),
+    }),
     keyPrefix: options?.keyPrefix,
     defaultTtl: options?.defaultTtl,
   });
