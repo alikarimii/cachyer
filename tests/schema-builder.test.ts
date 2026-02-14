@@ -1,13 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  TypedSchemaBuilder,
   TypedOperationBuilder,
-  createTypedSchema,
-  createKeyValueSchema,
-  createHashSchema,
-  createSortedSetSchema,
-  createSetSchema,
   createCounterSchema,
+  createHashSchema,
+  createKeyValueSchema,
+  createSetSchema,
+  createSortedSetSchema,
+  createTypedSchema,
 } from "../src/schemas/schema-builder";
 import { createKeyBuilder } from "../src/utils/key-patterns";
 
@@ -81,7 +80,7 @@ describe("TypedSchemaBuilder", () => {
           .structure("STRING")
           .ttl(100)
           .operations((ops) => ops.addGet())
-          .build()
+          .build(),
       ).toThrow("Schema name is required");
     });
 
@@ -92,7 +91,7 @@ describe("TypedSchemaBuilder", () => {
           .structure("STRING")
           .ttl(100)
           .operations((ops) => ops.addGet())
-          .build()
+          .build(),
       ).toThrow("Must set keyPattern before configuring operations");
     });
 
@@ -103,7 +102,7 @@ describe("TypedSchemaBuilder", () => {
           .keyPattern("k:{userId}")
           .ttl(100)
           .operations((ops) => ops.addGet())
-          .build()
+          .build(),
       ).toThrow("Structure is required");
     });
 
@@ -114,7 +113,7 @@ describe("TypedSchemaBuilder", () => {
           .keyPattern("k:{userId}")
           .structure("STRING")
           .operations((ops) => ops.addGet())
-          .build()
+          .build(),
       ).toThrow("TTL is required");
     });
   });
@@ -199,9 +198,10 @@ describe("TypedSchemaBuilder", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
         const ops = builder.addExpire().getOperations();
         expect(ops.expire.command).toBe("EXPIRE");
-        expect(
-          ops.expire.buildArgs({ userId: "1", ttl: 500 })
-        ).toEqual(["user:1", 500]);
+        expect(ops.expire.buildArgs({ userId: "1", ttl: 500 })).toEqual([
+          "user:1",
+          500,
+        ]);
       });
 
       it("should addExpire with default TTL", () => {
@@ -220,9 +220,10 @@ describe("TypedSchemaBuilder", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
         const ops = builder.addIncrementBy().getOperations();
         expect(ops.incrementBy.command).toBe("INCRBY");
-        expect(
-          ops.incrementBy.buildArgs({ userId: "1", amount: 5 })
-        ).toEqual(["user:1", 5]);
+        expect(ops.incrementBy.buildArgs({ userId: "1", amount: 5 })).toEqual([
+          "user:1",
+          5,
+        ]);
       });
     });
 
@@ -239,7 +240,7 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addHashGet().getOperations();
         expect(ops.hashGetField.command).toBe("HGET");
         expect(
-          ops.hashGetField.buildArgs({ userId: "1", field: "name" })
+          ops.hashGetField.buildArgs({ userId: "1", field: "name" }),
         ).toEqual(["user:1", "name"]);
       });
 
@@ -248,7 +249,11 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addHashSet().getOperations();
         expect(ops.hashSetField.command).toBe("HSET");
         expect(
-          ops.hashSetField.buildArgs({ userId: "1", field: "name", value: "Ali" })
+          ops.hashSetField.buildArgs({
+            userId: "1",
+            field: "name",
+            value: "Ali",
+          }),
         ).toEqual(["user:1", "name", "Ali"]);
       });
 
@@ -265,7 +270,11 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addSortedSetAdd().getOperations();
         expect(ops.sortedSetAdd.command).toBe("ZADD");
         expect(
-          ops.sortedSetAdd.buildArgs({ userId: "1", member: "item", score: 10 })
+          ops.sortedSetAdd.buildArgs({
+            userId: "1",
+            member: "item",
+            score: 10,
+          }),
         ).toEqual(["user:1", 10, "item"]);
       });
 
@@ -274,7 +283,7 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addSortedSetGetRange().getOperations();
         expect(ops.sortedSetGetRange.command).toBe("ZREVRANGE");
         expect(
-          ops.sortedSetGetRange.buildArgs({ userId: "1", start: 0, stop: 9 })
+          ops.sortedSetGetRange.buildArgs({ userId: "1", start: 0, stop: 9 }),
         ).toEqual(["user:1", 0, 9]);
       });
 
@@ -284,7 +293,7 @@ describe("TypedSchemaBuilder", () => {
           .addSortedSetGetRange("withScores", true)
           .getOperations();
         expect(
-          ops.withScores.buildArgs({ userId: "1", start: 0, stop: 9 })
+          ops.withScores.buildArgs({ userId: "1", start: 0, stop: 9 }),
         ).toEqual(["user:1", 0, 9, "WITHSCORES"]);
       });
 
@@ -293,7 +302,7 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addSortedSetRemove().getOperations();
         expect(ops.sortedSetRemove.command).toBe("ZREM");
         expect(
-          ops.sortedSetRemove.buildArgs({ userId: "1", member: "item" })
+          ops.sortedSetRemove.buildArgs({ userId: "1", member: "item" }),
         ).toEqual(["user:1", "item"]);
       });
 
@@ -303,9 +312,9 @@ describe("TypedSchemaBuilder", () => {
         expect(ops.sortedSetCount.command).toBe("ZCARD");
       });
 
-      it("should addSortedSetScore", () => {
+      it("should addSortedSetGetScore", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
-        const ops = builder.addSortedSetScore().getOperations();
+        const ops = builder.addSortedSetGetScore().getOperations();
         expect(ops.sortedSetGetScore.command).toBe("ZSCORE");
         expect(ops.sortedSetGetScore.parseResult!("42")).toBe(42);
         expect(ops.sortedSetGetScore.parseResult!(null)).toBeNull();
@@ -328,7 +337,7 @@ describe("TypedSchemaBuilder", () => {
             userId: "1",
             member: "item",
             amount: 5,
-          })
+          }),
         ).toEqual(["user:1", 5, "item"]);
         expect(ops.sortedSetIncrementBy.parseResult!("15")).toBe(15);
       });
@@ -346,7 +355,7 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addSortedSetGetTopMembers().getOperations();
         expect(ops.sortedSetGetTopMembers.command).toBe("ZREVRANGE");
         expect(
-          ops.sortedSetGetTopMembers.buildArgs({ userId: "1", topN: 5 })
+          ops.sortedSetGetTopMembers.buildArgs({ userId: "1", topN: 5 }),
         ).toEqual(["user:1", 0, 4, "WITHSCORES"]);
       });
 
@@ -355,7 +364,7 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addSortedSetRemoveOldest().getOperations();
         expect(ops.sortedSetRemoveOldest.command).toBe("ZREMRANGEBYRANK");
         expect(
-          ops.sortedSetRemoveOldest.buildArgs({ userId: "1", count: 3 })
+          ops.sortedSetRemoveOldest.buildArgs({ userId: "1", count: 3 }),
         ).toEqual(["user:1", 0, 2]);
       });
 
@@ -364,7 +373,11 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addSortedSetCountInRange().getOperations();
         expect(ops.sortedSetCountInRange.command).toBe("ZCOUNT");
         expect(
-          ops.sortedSetCountInRange.buildArgs({ userId: "1", min: 0, max: 100 })
+          ops.sortedSetCountInRange.buildArgs({
+            userId: "1",
+            min: 0,
+            max: 100,
+          }),
         ).toEqual(["user:1", 0, 100]);
       });
     });
@@ -374,17 +387,18 @@ describe("TypedSchemaBuilder", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
         const ops = builder.addSetAdd().getOperations();
         expect(ops.setAdd.command).toBe("SADD");
-        expect(
-          ops.setAdd.buildArgs({ userId: "1", member: "tag1" })
-        ).toEqual(["user:1", "tag1"]);
+        expect(ops.setAdd.buildArgs({ userId: "1", member: "tag1" })).toEqual([
+          "user:1",
+          "tag1",
+        ]);
       });
 
       it("should addSetAddMultiple", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
         const ops = builder.addSetAddMultiple().getOperations();
-        expect(ops.setAdd.command).toBe("SADD");
+        expect(ops.setAddMultiple.command).toBe("SADD");
         expect(
-          ops.setAdd.buildArgs({ userId: "1", members: ["a", "b"] })
+          ops.setAddMultiple.buildArgs({ userId: "1", members: ["a", "b"] }),
         ).toEqual(["user:1", "a", "b"]);
       });
 
@@ -394,30 +408,30 @@ describe("TypedSchemaBuilder", () => {
         expect(ops.setGetAll.command).toBe("SMEMBERS");
       });
 
-      it("should addSetIsMember", () => {
+      it("should addSetHasMember", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
-        const ops = builder.addSetIsMember().getOperations();
-        expect(ops.has.command).toBe("SISMEMBER");
-        expect(ops.has.parseResult!(1)).toBe(true);
-        expect(ops.has.parseResult!(0)).toBe(false);
+        const ops = builder.addSetHasMember().getOperations();
+        expect(ops.setHasMember.command).toBe("SISMEMBER");
+        expect(ops.setHasMember.parseResult!(1)).toBe(true);
+        expect(ops.setHasMember.parseResult!(0)).toBe(false);
       });
 
-      it("should addSetRemoveMember", () => {
+      it("should addSetRemove", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
-        const ops = builder.addSetRemoveMember().getOperations();
-        expect(ops.setRemoveMember.command).toBe("SREM");
+        const ops = builder.addSetRemove().getOperations();
+        expect(ops.setRemove.command).toBe("SREM");
       });
 
-      it("should addSetCountMembers", () => {
+      it("should addSetCount", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
-        const ops = builder.addSetCountMembers().getOperations();
-        expect(ops.setCountMembers.command).toBe("SCARD");
+        const ops = builder.addSetCount().getOperations();
+        expect(ops.setCount.command).toBe("SCARD");
       });
 
-      it("should addSetGetRandomMember", () => {
+      it("should addSetGetRandom", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
-        const ops = builder.addSetGetRandomMember().getOperations();
-        expect(ops.setGetRandomMember.command).toBe("SRANDMEMBER");
+        const ops = builder.addSetGetRandom().getOperations();
+        expect(ops.setGetRandom.command).toBe("SRANDMEMBER");
       });
     });
 
@@ -426,9 +440,10 @@ describe("TypedSchemaBuilder", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
         const ops = builder.addListPush().getOperations();
         expect(ops.listPush.command).toBe("LPUSH");
-        expect(
-          ops.listPush.buildArgs({ userId: "1", value: "item" })
-        ).toEqual(["user:1", "item"]);
+        expect(ops.listPush.buildArgs({ userId: "1", value: "item" })).toEqual([
+          "user:1",
+          "item",
+        ]);
       });
 
       it("should addListGetRange", () => {
@@ -436,7 +451,7 @@ describe("TypedSchemaBuilder", () => {
         const ops = builder.addListGetRange().getOperations();
         expect(ops.listGetRange.command).toBe("LRANGE");
         expect(
-          ops.listGetRange.buildArgs({ userId: "1", start: 0, stop: 9 })
+          ops.listGetRange.buildArgs({ userId: "1", start: 0, stop: 9 }),
         ).toEqual(["user:1", 0, 9]);
       });
 
@@ -462,9 +477,9 @@ describe("TypedSchemaBuilder", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
         const ops = builder.addListGetByIndex().getOperations();
         expect(ops.listGetByIndex.command).toBe("LINDEX");
-        expect(
-          ops.listGetByIndex.buildArgs({ userId: "1", index: 2 })
-        ).toEqual(["user:1", 2]);
+        expect(ops.listGetByIndex.buildArgs({ userId: "1", index: 2 })).toEqual(
+          ["user:1", 2],
+        );
       });
 
       it("should addListSet", () => {
@@ -495,7 +510,7 @@ describe("TypedSchemaBuilder", () => {
             before: true,
             pivot: "x",
             value: "y",
-          })
+          }),
         ).toEqual(["user:1", "BEFORE", "x", "y"]);
       });
     });
@@ -541,7 +556,7 @@ describe("TypedSchemaBuilder", () => {
       const schema = createKeyValueSchema<TestKeyParams>(
         "user-data",
         "user:{userId}:data",
-        3600
+        3600,
       );
       expect(schema.name).toBe("user-data");
       expect(schema.structure).toBe("STRING");
@@ -557,7 +572,7 @@ describe("TypedSchemaBuilder", () => {
       const schema = createHashSchema<TestKeyParams>(
         "user-profile",
         "user:{userId}:profile",
-        7200
+        7200,
       );
       expect(schema.name).toBe("user-profile");
       expect(schema.structure).toBe("HASH");
@@ -576,7 +591,7 @@ describe("TypedSchemaBuilder", () => {
         "leaderboard",
         "board:{userId}",
         3600,
-        100
+        100,
       );
       expect(schema.name).toBe("leaderboard");
       expect(schema.structure).toBe("SORTED_SET");
@@ -590,7 +605,7 @@ describe("TypedSchemaBuilder", () => {
       const schema = createSortedSetSchema<TestKeyParams>(
         "feed",
         "feed:{userId}",
-        3600
+        3600,
       );
       expect(schema.maxSize).toBeUndefined();
     });
@@ -599,13 +614,13 @@ describe("TypedSchemaBuilder", () => {
       const schema = createSetSchema<TestKeyParams>(
         "tags",
         "tags:{userId}",
-        3600
+        3600,
       );
       expect(schema.name).toBe("tags");
       expect(schema.structure).toBe("SET");
       expect(schema.operations.setAdd).toBeDefined();
       expect(schema.operations.setGetAll).toBeDefined();
-      expect(schema.operations.has).toBeDefined();
+      expect(schema.operations.setHasMember).toBeDefined();
       expect(schema.operations.delete).toBeDefined();
     });
 
@@ -613,7 +628,7 @@ describe("TypedSchemaBuilder", () => {
       const schema = createCounterSchema<TestKeyParams>(
         "view-count",
         "views:{userId}",
-        86400
+        86400,
       );
       expect(schema.name).toBe("view-count");
       expect(schema.structure).toBe("STRING");

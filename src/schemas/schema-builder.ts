@@ -220,15 +220,13 @@ export type SetGetAllOperation<
 export type SetIsMemberOperation<TKeyParams extends Record<string, unknown>> =
   CacheOperation<TKeyParams & { member: string }, boolean>;
 
-export type SetRemoveMemberOperation<
-  TKeyParams extends Record<string, unknown>,
-> = CacheOperation<TKeyParams & { member: string }, number>;
+export type SetRemoveOperation<TKeyParams extends Record<string, unknown>> =
+  CacheOperation<TKeyParams & { member: string }, number>;
 
-export type SetCountMembersOperation<
-  TKeyParams extends Record<string, unknown>,
-> = CacheOperation<TKeyParams, number>;
+export type SetCountOperation<TKeyParams extends Record<string, unknown>> =
+  CacheOperation<TKeyParams, number>;
 
-export type SetGetRandomMemberOperation<
+export type SetGetRandomOperation<
   TKeyParams extends Record<string, unknown>,
   TResult = string | null,
 > = CacheOperation<TKeyParams, TResult>;
@@ -301,7 +299,7 @@ export class TypedOperationBuilder<
 
   constructor(
     keyBuilder: KeyBuilder<TKeyParams>,
-    existingOps: Record<string, CacheOperation<any, any>> = {}
+    existingOps: Record<string, CacheOperation<any, any>> = {},
   ) {
     this.keyBuilder = keyBuilder;
     this.operations = { ...existingOps };
@@ -312,7 +310,7 @@ export class TypedOperationBuilder<
     TOp extends CacheOperation<any, any>,
   >(
     name: TName,
-    operation: TOp
+    operation: TOp,
   ): TypedOperationBuilder<TKeyParams, TOperations & { [K in TName]: TOp }> {
     this.operations[name] = operation;
     return this as unknown as TypedOperationBuilder<
@@ -326,7 +324,7 @@ export class TypedOperationBuilder<
    */
   addGet<TName extends string = "get", TResult = string | null>(
     name?: TName,
-    parseResult?: (result: unknown) => TResult
+    parseResult?: (result: unknown) => TResult,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: GetOperation<TKeyParams, TResult> }
@@ -346,7 +344,7 @@ export class TypedOperationBuilder<
    */
   addSet<TName extends string = "set", TValue = string>(
     name?: TName,
-    ttl?: number
+    ttl?: number,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SetOperation<TKeyParams, TValue> }
@@ -377,7 +375,7 @@ export class TypedOperationBuilder<
    * Add a DEL operation
    */
   addDelete<TName extends string = "delete">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: DeleteOperation<TKeyParams> }
@@ -396,7 +394,7 @@ export class TypedOperationBuilder<
    * Add an EXISTS operation
    */
   addExists<TName extends string = "exists">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ExistsOperation<TKeyParams> }
@@ -415,7 +413,7 @@ export class TypedOperationBuilder<
    * Add a TTL operation
    */
   addTtl<TName extends string = "ttl">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: TtlOperation<TKeyParams> }
@@ -435,7 +433,7 @@ export class TypedOperationBuilder<
    */
   addExpire<TName extends string = "expire">(
     name?: TName,
-    defaultTtl?: number
+    defaultTtl?: number,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ExpireOperation<TKeyParams> }
@@ -457,7 +455,7 @@ export class TypedOperationBuilder<
    * Add an INCR operation
    */
   addIncrement<TName extends string = "increment">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: IncrementOperation<TKeyParams> }
@@ -476,7 +474,7 @@ export class TypedOperationBuilder<
    * Add an INCRBY operation
    */
   addIncrementBy<TName extends string = "incrementBy">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: IncrementByOperation<TKeyParams> }
@@ -502,7 +500,7 @@ export class TypedOperationBuilder<
     TResult = Record<string, string>,
   >(
     name?: TName,
-    parseResult?: (result: unknown) => TResult
+    parseResult?: (result: unknown) => TResult,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: HashGetAllOperation<TKeyParams, TResult> }
@@ -522,7 +520,7 @@ export class TypedOperationBuilder<
    */
   addHashGet<TName extends string = "hashGetField", TResult = string | null>(
     name?: TName,
-    parseResult?: (result: unknown) => TResult
+    parseResult?: (result: unknown) => TResult,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: HashGetOperation<TKeyParams, TResult> }
@@ -544,7 +542,7 @@ export class TypedOperationBuilder<
    * Add a hash HSET operation
    */
   addHashSet<TName extends string = "hashSetField">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: HashSetOperation<TKeyParams> }
@@ -567,7 +565,7 @@ export class TypedOperationBuilder<
    * Add a hash HMSET operation
    */
   addHashSetMultiple<TName extends string = "hashSetMultiple">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: HashSetMultipleOperation<TKeyParams> }
@@ -576,9 +574,12 @@ export class TypedOperationBuilder<
     const operation: HashSetMultipleOperation<TKeyParams> = {
       command: "HMSET",
       buildArgs: (
-        params: TKeyParams & { fields: Record<string, string | number> }
+        params: TKeyParams & { fields: Record<string, string | number> },
       ) => {
-        return [this.keyBuilder(params), params.fields] as unknown as (string | number)[];
+        return [this.keyBuilder(params), params.fields] as unknown as (
+          | string
+          | number
+        )[];
       },
       parseResult: (r) => r as "OK",
       description: `Set multiple hash fields`,
@@ -590,7 +591,7 @@ export class TypedOperationBuilder<
    * Add a sorted set ZADD operation
    */
   addSortedSetAdd<TName extends string = "sortedSetAdd">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetAddOperation<TKeyParams> }
@@ -618,7 +619,7 @@ export class TypedOperationBuilder<
   >(
     name?: TName,
     withScores: boolean = false,
-    parseResult?: (result: unknown) => TResult
+    parseResult?: (result: unknown) => TResult,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & {
@@ -660,7 +661,7 @@ export class TypedOperationBuilder<
   addSortedSetGetRangeWithScores<
     TName extends string = "sortedSetGetRangeWithScores",
   >(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & {
@@ -693,7 +694,7 @@ export class TypedOperationBuilder<
    * Add a sorted set ZREM operation
    */
   addSortedSetRemove<TName extends string = "sortedSetRemove">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetRemoveOperation<TKeyParams> }
@@ -715,7 +716,7 @@ export class TypedOperationBuilder<
    * Add a sorted set ZCARD operation
    */
   addSortedSetCount<TName extends string = "sortedSetCount">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetCountOperation<TKeyParams> }
@@ -733,8 +734,8 @@ export class TypedOperationBuilder<
   /**
    * Add a sorted set ZSCORE operation
    */
-  addSortedSetScore<TName extends string = "sortedSetGetScore">(
-    name?: TName
+  addSortedSetGetScore<TName extends string = "sortedSetGetScore">(
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetScoreOperation<TKeyParams> }
@@ -756,7 +757,7 @@ export class TypedOperationBuilder<
    * Add a sorted set ZREVRANK operation
    */
   addSortedSetGetRank<TName extends string = "sortedSetGetRank">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetRankOperation<TKeyParams> }
@@ -778,7 +779,7 @@ export class TypedOperationBuilder<
    * Add a sorted set ZINCRBY operation
    */
   addSortedSetIncrementBy<TName extends string = "sortedSetIncrementBy">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetIncrementByOperation<TKeyParams> }
@@ -797,7 +798,7 @@ export class TypedOperationBuilder<
     return this.withOperation(opName, operation);
   }
   addSortedSetRemoveOldest<TName extends string = "sortedSetRemoveOldest">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetRemoveOldestOperation<TKeyParams> }
@@ -816,7 +817,7 @@ export class TypedOperationBuilder<
     return this.withOperation(opName, operation);
   }
   addSortedSetCountInRange<TName extends string = "sortedSetCountInRange">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetCountInRangeOperation<TKeyParams> }
@@ -835,7 +836,7 @@ export class TypedOperationBuilder<
     return this.withOperation(opName, operation);
   }
   addSortedSetHasMember<TName extends string = "sortedSetHasMember">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SortedSetHasMemberOperation<TKeyParams> }
@@ -854,7 +855,7 @@ export class TypedOperationBuilder<
   }
   addSortedSetGetTopMembers<TName extends string = "sortedSetGetTopMembers">(
     name?: TName,
-    parseResult?: (result: unknown) => Array<{ member: string; score: number }>
+    parseResult?: (result: unknown) => Array<{ member: string; score: number }>,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & {
@@ -889,7 +890,7 @@ export class TypedOperationBuilder<
    * Add a set SADD operation
    */
   addSetAdd<TName extends string = "setAdd">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SetAddOperation<TKeyParams> }
@@ -910,12 +911,12 @@ export class TypedOperationBuilder<
    * Add a set SADD multiple operation
    */
   addSetAddMultiple<TName extends string = "setAddMultiple">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SetAddMultipleOperation<TKeyParams> }
   > {
-    const opName = (name ?? "setAdd") as TName;
+    const opName = (name ?? "setAddMultiple") as TName;
     const operation: SetAddMultipleOperation<TKeyParams> = {
       command: "SADD",
       buildArgs: (params: TKeyParams & { members: string[] }) => [
@@ -933,7 +934,7 @@ export class TypedOperationBuilder<
    */
   addSetGetAll<TName extends string = "setGetAll", TResult = string[]>(
     name?: TName,
-    parseResult?: (result: unknown) => TResult
+    parseResult?: (result: unknown) => TResult,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SetGetAllOperation<TKeyParams, TResult> }
@@ -951,13 +952,13 @@ export class TypedOperationBuilder<
   /**
    * Add a set SISMEMBER operation
    */
-  addSetIsMember<TName extends string = "setHas">(
-    name?: TName
+  addSetHasMember<TName extends string = "setHasMember">(
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: SetIsMemberOperation<TKeyParams> }
   > {
-    const opName = (name ?? "has") as TName;
+    const opName = (name ?? "setHasMember") as TName;
     const operation: SetIsMemberOperation<TKeyParams> = {
       command: "SISMEMBER",
       buildArgs: (params: TKeyParams & { member: string }) => [
@@ -972,14 +973,14 @@ export class TypedOperationBuilder<
   /**
    * Add a set SREM operation
    */
-  addSetRemoveMember<TName extends string = "setRemoveMember">(
-    name?: TName
+  addSetRemove<TName extends string = "setRemove">(
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
-    TOperations & { [K in TName]: SetRemoveMemberOperation<TKeyParams> }
+    TOperations & { [K in TName]: SetRemoveOperation<TKeyParams> }
   > {
-    const opName = (name ?? "setRemoveMember") as TName;
-    const operation: SetRemoveMemberOperation<TKeyParams> = {
+    const opName = (name ?? "setRemove") as TName;
+    const operation: SetRemoveOperation<TKeyParams> = {
       command: "SREM",
       buildArgs: (params: TKeyParams & { member: string }) => [
         this.keyBuilder(params),
@@ -993,14 +994,14 @@ export class TypedOperationBuilder<
   /**
    * Add a set SCARD operation
    */
-  addSetCountMembers<TName extends string = "setCountMembers">(
-    name?: TName
+  addSetCount<TName extends string = "setCount">(
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
-    TOperations & { [K in TName]: SetCountMembersOperation<TKeyParams> }
+    TOperations & { [K in TName]: SetCountOperation<TKeyParams> }
   > {
-    const opName = (name ?? "setCountMembers") as TName;
-    const operation: SetCountMembersOperation<TKeyParams> = {
+    const opName = (name ?? "setCount") as TName;
+    const operation: SetCountOperation<TKeyParams> = {
       command: "SCARD",
       buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
       parseResult: (result) => result as number,
@@ -1008,14 +1009,14 @@ export class TypedOperationBuilder<
     };
     return this.withOperation(opName, operation);
   }
-  addSetGetRandomMember<TName extends string = "setGetRandomMember">(
-    name?: TName
+  addSetGetRandom<TName extends string = "setGetRandom">(
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
-    TOperations & { [K in TName]: SetGetRandomMemberOperation<TKeyParams> }
+    TOperations & { [K in TName]: SetGetRandomOperation<TKeyParams> }
   > {
-    const opName = (name ?? "setGetRandomMember") as TName;
-    const operation: SetGetRandomMemberOperation<TKeyParams> = {
+    const opName = (name ?? "setGetRandom") as TName;
+    const operation: SetGetRandomOperation<TKeyParams> = {
       command: "SRANDMEMBER",
       buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
       parseResult: (result) => result as string | null,
@@ -1027,7 +1028,7 @@ export class TypedOperationBuilder<
    * Add a list LPUSH operation
    */
   addListPush<TName extends string = "listPush">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListPushOperation<TKeyParams> }
@@ -1050,7 +1051,7 @@ export class TypedOperationBuilder<
    */
   addListGetRange<TName extends string = "listGetRange", TResult = string[]>(
     name?: TName,
-    parseResult?: (result: unknown) => TResult
+    parseResult?: (result: unknown) => TResult,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListGetRangeOperation<TKeyParams, TResult> }
@@ -1073,7 +1074,7 @@ export class TypedOperationBuilder<
    * Add a list LSET operation
    */
   addListSet<TName extends string = "listSet">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListSetOperation<TKeyParams> }
@@ -1096,7 +1097,7 @@ export class TypedOperationBuilder<
    * Add a list LREM operation
    */
   addListRemove<TName extends string = "listRemove">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListRemoveOperation<TKeyParams> }
@@ -1119,7 +1120,7 @@ export class TypedOperationBuilder<
    * Add a list LLEN operation
    */
   addListLength<TName extends string = "listLength">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListLengthOperation<TKeyParams> }
@@ -1138,7 +1139,7 @@ export class TypedOperationBuilder<
    * Add a list LPOP operation
    */
   addListPop<TName extends string = "listPop">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListPopOperation<TKeyParams> }
@@ -1157,7 +1158,7 @@ export class TypedOperationBuilder<
    * Add a list LTRIM operation
    */
   addListTrim<TName extends string = "listTrim">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListTrimOperation<TKeyParams> }
@@ -1176,7 +1177,7 @@ export class TypedOperationBuilder<
     return this.withOperation(opName, operation);
   }
   addListIndexOf<TName extends string = "listIndexOf">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListIndexOfOperation<TKeyParams> }
@@ -1194,7 +1195,7 @@ export class TypedOperationBuilder<
     return this.withOperation(opName, operation);
   }
   addListInsert<TName extends string = "listInsert">(
-    name?: TName
+    name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListInsertOperation<TKeyParams> }
@@ -1207,7 +1208,7 @@ export class TypedOperationBuilder<
           before: boolean;
           pivot: string;
           value: string;
-        }
+        },
       ) => [
         this.keyBuilder(params),
         params.before ? "BEFORE" : "AFTER",
@@ -1227,7 +1228,7 @@ export class TypedOperationBuilder<
     TResult = string | null,
   >(
     name?: TName,
-    parseResult?: (result: unknown) => TResult
+    parseResult?: (result: unknown) => TResult,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: ListGetByIndexOperation<TKeyParams, TResult> }
@@ -1254,7 +1255,7 @@ export class TypedOperationBuilder<
     TResult,
   >(
     name: TName,
-    operation: CacheOperation<TParams, TResult>
+    operation: CacheOperation<TParams, TResult>,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: CacheOperation<TParams, TResult> }
@@ -1362,8 +1363,8 @@ export class TypedSchemaBuilder<TKeyParams extends Record<string, unknown>> {
    */
   operations<TOperations extends Record<string, CacheOperation<any, any>>>(
     configure: (
-      builder: TypedOperationBuilder<TKeyParams, {}>
-    ) => TypedOperationBuilder<TKeyParams, TOperations>
+      builder: TypedOperationBuilder<TKeyParams, {}>,
+    ) => TypedOperationBuilder<TKeyParams, TOperations>,
   ): TypedSchemaBuilderWithOperations<TKeyParams, TOperations> {
     if (!this.keyBuilder) {
       throw new Error("Must set keyPattern before configuring operations");
@@ -1373,7 +1374,7 @@ export class TypedSchemaBuilder<TKeyParams extends Record<string, unknown>> {
     return new TypedSchemaBuilderWithOperations<TKeyParams, TOperations>(
       this.config,
       this.keyBuilder,
-      configuredBuilder.getOperations()
+      configuredBuilder.getOperations(),
     );
   }
 }
@@ -1393,7 +1394,7 @@ export class TypedSchemaBuilderWithOperations<
   constructor(
     config: Partial<SchemaBuilderConfig>,
     keyBuilder: KeyBuilder<TKeyParams>,
-    operations: TOperations
+    operations: TOperations,
   ) {
     this.config = config;
     this.keyBuilder = keyBuilder;
@@ -1474,7 +1475,7 @@ export function createKeyValueSchema<
     .structure("STRING")
     .ttl(ttl)
     .operations((ops) =>
-      ops.addGet().addSet(undefined, ttl).addDelete().addExists().addTtl()
+      ops.addGet().addSet(undefined, ttl).addDelete().addExists().addTtl(),
     )
     .build();
 }
@@ -1485,7 +1486,7 @@ export function createKeyValueSchema<
 export function createHashSchema<TKeyParams extends Record<string, unknown>>(
   name: string,
   keyPattern: string,
-  ttl: number
+  ttl: number,
 ) {
   return createTypedSchema<TKeyParams>()
     .name(name)
@@ -1501,7 +1502,7 @@ export function createHashSchema<TKeyParams extends Record<string, unknown>>(
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl()
+        .addTtl(),
     )
     .build();
 }
@@ -1531,7 +1532,7 @@ export function createSortedSetSchema<
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl()
+        .addTtl(),
     )
     .build();
 }
@@ -1542,7 +1543,7 @@ export function createSortedSetSchema<
 export function createSetSchema<TKeyParams extends Record<string, unknown>>(
   name: string,
   keyPattern: string,
-  ttl: number
+  ttl: number,
 ) {
   return createTypedSchema<TKeyParams>()
     .name(name)
@@ -1553,11 +1554,11 @@ export function createSetSchema<TKeyParams extends Record<string, unknown>>(
       ops
         .addSetAdd()
         .addSetGetAll()
-        .addSetIsMember()
+        .addSetHasMember()
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl()
+        .addTtl(),
     )
     .build();
 }
@@ -1568,7 +1569,7 @@ export function createSetSchema<TKeyParams extends Record<string, unknown>>(
 export function createCounterSchema<TKeyParams extends Record<string, unknown>>(
   name: string,
   keyPattern: string,
-  ttl: number
+  ttl: number,
 ) {
   return createTypedSchema<TKeyParams>()
     .name(name)
@@ -1583,7 +1584,7 @@ export function createCounterSchema<TKeyParams extends Record<string, unknown>>(
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)
-        .addTtl()
+        .addTtl(),
     )
     .build();
 }
