@@ -55,6 +55,16 @@
     "lua-scripts"
   ],
   "author": "Ali Karimi",
+  "contributors": [
+    {
+      "name": "Ali Karimi",
+      "url": "https://github.com/alikarimii"
+    },
+    {
+      "name": "Claude (Anthropic)",
+      "url": "https://claude.ai"
+    }
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",

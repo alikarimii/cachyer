@@ -13,6 +13,7 @@ This document covers the new features added to Cachyer's core package. Each sect
 5. [Scoring & Time-Decay Utilities](#5-scoring--time-decay-utilities)
 6. [HyperLogLog Schema Templates](#6-hyperloglog-schema-templates)
 7. [Bloom Filter Schema Templates](#7-bloom-filter-schema-templates)
+8. [CacheAction — Multi-Step Workflows](#8-cacheaction--multi-step-workflows)
 
 ---
 
@@ -527,6 +528,278 @@ const results = await cache.execute(SeenPosts.operations.bloomFilterMultiExists,
 
 ---
 
+## 8. CacheAction — Multi-Step Workflows
+
+**Files:** `src/actions/action-builder.ts`, `src/actions/action-executor.ts`, `src/actions/action.types.ts`
+
+A **define-once, execute-many** workflow abstraction for multi-step cache operations. A single user action (e.g., "post liked") often triggers 5-6 cache operations across different schemas — increment counters, add to sets, recalculate scores, update sorted sets, fan-out to followers. CacheAction handles orchestration, pipeline batching, dependency resolution, and error handling automatically.
+
+### When to use
+
+- A user action requires multiple cache writes across different schemas
+- You want independent operations batched into a single pipeline round-trip
+- You need computed values derived from cache results passed to subsequent steps
+- You want consistent error handling across multi-step cache workflows
+
+### Core concepts
+
+CacheAction composes three types of steps into a dependency graph (DAG):
+
+| Step type | What it does | Round-trips |
+|---|---|---|
+| **Operation step** (`.step()`) | Executes a `CacheOperation` via `cache.execute()` or batched into `cache.pipeline()` | 1 per batch |
+| **Compute step** (`.compute()`) | Runs arbitrary async logic with access to previous results and the cache instance | 0 |
+| **Fan-out step** (`.fanOut()`) | Generates N pipeline entries from a single result | 1 per fan-out |
+
+The executor topologically sorts steps into batches. Steps within the same batch have no mutual dependencies and run in parallel. Multiple operation steps in the same batch are combined into a single `cache.pipeline()` call.
+
+### defineAction
+
+The entry point. Returns a fluent builder.
+
+```typescript
+import { defineAction, pipelineEntry } from 'cachyer'
+
+const postLiked = defineAction<{ postId: string; userId: string; followerIds: string[] }>("post-liked")
+  // Batch 1: these two have no dependencies, run in a single pipeline
+  .step("incrementLikes", {
+    operation: postStatsSchema.operations.incrementField,
+    params: (input) => ({ postId: input.postId, field: "likes", amount: 1 }),
+  })
+  .step("addToLikers", {
+    operation: postLikersSchema.operations.add,
+    params: (input) => ({ postId: input.postId, member: input.userId }),
+  })
+  // Batch 2: depends on incrementLikes, runs after batch 1
+  .compute("score", {
+    dependsOn: ["incrementLikes"] as const,
+    fn: async (input, deps) => Math.log10(deps.incrementLikes + 1) * 10,
+  })
+  // Batch 3: depends on score, runs after batch 2
+  .step("updateTrending", {
+    dependsOn: ["score"] as const,
+    operation: trendingSchema.operations.add,
+    params: (input, deps) => ({ member: `post:${input.postId}`, score: deps.score }),
+  })
+  .fanOut("updateFollowerFeeds", {
+    dependsOn: ["score"] as const,
+    generate: (input, deps) =>
+      input.followerIds.map(fid =>
+        pipelineEntry(feedSchema.operations.add, { userId: fid, member: `post:${input.postId}`, score: deps.score })
+      ),
+  })
+  .onError("skip-dependents")
+  .build()
+```
+
+This produces 3 batches (3 round-trips) instead of 5+ sequential awaits.
+
+### Executing an action
+
+```typescript
+const result = await postLiked.run(cache, {
+  postId: "post-123",
+  userId: "user-42",
+  followerIds: ["user-1", "user-2", "user-3"],
+})
+
+console.log(result.success)        // true if all steps succeeded
+console.log(result.results.score)  // the computed score (typed as number)
+console.log(result.errors)         // [] if successful, or StepError[] on failure
+console.log(result.executionTimeMs) // total wall-clock time
+console.log(result.batches)        // 3
+```
+
+### Step types in detail
+
+#### Operation step (`.step()`)
+
+Wraps a `CacheOperation` from a schema. Gets key prefixing, metrics, and retries via `cache.execute()`, or is batched into `cache.pipeline()` when multiple operation steps share a batch.
+
+```typescript
+.step("setFlag", {
+  operation: mySchema.operations.set,
+  params: (input) => ({ key: input.userId, value: "1" }),
+})
+```
+
+With dependencies — the `deps` object is typed based on `dependsOn`:
+
+```typescript
+.step("updateScore", {
+  dependsOn: ["computedScore"] as const,
+  operation: scoreSchema.operations.set,
+  params: (input, deps) => ({ key: input.id, value: String(deps.computedScore) }),
+})
+```
+
+#### Compute step (`.compute()`)
+
+Arbitrary async logic. Receives the input, resolved dependencies, and the `Cachyer` instance.
+
+```typescript
+.compute("derived", {
+  dependsOn: ["rawCount"] as const,
+  fn: async (input, deps, cache) => {
+    // deps.rawCount is typed based on the "rawCount" step's result
+    const extra = await cache.get(`extra:${input.id}`)
+    return deps.rawCount * 2 + Number(extra)
+  },
+})
+```
+
+#### Fan-out step (`.fanOut()`)
+
+Generates N pipeline entries and executes them in a single `cache.pipeline()` call. Useful for broadcasting to multiple keys.
+
+```typescript
+.fanOut("notifyFollowers", {
+  dependsOn: ["score"] as const,
+  generate: (input, deps) =>
+    input.followerIds.map(fid =>
+      pipelineEntry(feedSchema.operations.add, {
+        userId: fid,
+        member: input.postId,
+        score: deps.score,
+      })
+    ),
+  parseResults: (results) => results.length, // optional: transform raw results
+})
+```
+
+### Error handling strategies
+
+Set the default strategy via `.onError()` on the builder, or override per-execution via options:
+
+```typescript
+// Builder default
+const action = defineAction<Input>("name")
+  .step(...)
+  .onError("skip-dependents")
+  .build()
+
+// Override at execution time
+const result = await action.run(cache, input, { errorStrategy: "abort" })
+```
+
+| Strategy | Behavior |
+|---|---|
+| `"abort"` | Stop on first error. Remaining batches are skipped entirely. |
+| `"skip-dependents"` | Failed step's dependents are skipped, but independent steps continue. **(default)** |
+| `"continue"` | All steps run regardless. Failed dependencies resolve to `undefined`. |
+
+### Build-time validation
+
+The `.build()` method validates the action definition:
+
+- **Duplicate step names** — throws `Duplicate step name: "x"`
+- **Unknown dependencies** — throws `Step "x" depends on unknown step "y"`
+- **Cycles** — throws `Cycle detected in action steps: a -> b` (detected via Kahn's algorithm)
+
+### Per-step retry
+
+Steps can be retried automatically before being declared as failed. Set retries per-step or globally at execution time.
+
+```typescript
+const action = defineAction<{ key: string }>("with-retries")
+  // Per-step: retry up to 3 times with 200ms delay
+  .step("flaky", {
+    operation: externalApiOp,
+    params: (i) => ({ key: i.key }),
+    retries: 3,
+    retryDelay: 200,
+  })
+  // No per-step retry — will use global default
+  .step("reliable", {
+    operation: localOp,
+    params: (i) => ({ key: i.key }),
+  })
+  .build()
+
+// Global default: retry all steps up to 1 time with 100ms delay
+const result = await action.run(cache, { key: "k1" }, {
+  retries: 1,
+  retryDelay: 100,
+})
+```
+
+Per-step values override global defaults. When multiple operation steps are batched into a single pipeline and the pipeline fails, each step falls back to individual execution with retries.
+
+You can also set a `stepTimeout` (in ms) to limit each attempt:
+
+```typescript
+const result = await action.run(cache, input, {
+  retries: 2,
+  stepTimeout: 5000, // each attempt times out after 5s
+})
+```
+
+### Rollback / Undo
+
+Steps can define an `undo` handler — a compensation function that reverses their side effects. When the action fails and `rollbackOnFailure: true` is set, undo handlers run in **reverse completion order** (last completed first).
+
+```typescript
+const transferFunds = defineAction<{ from: string; to: string; amount: number }>("transfer")
+  .compute("debit", {
+    fn: async (input, _deps, cache) => {
+      await cache.adapter.decrby(`balance:${input.from}`, input.amount)
+      return input.amount
+    },
+    undo: async (input, _result, cache) => {
+      // Reverse the debit
+      await cache.adapter.incrby(`balance:${input.from}`, input.amount)
+    },
+  })
+  .compute("credit", {
+    dependsOn: ["debit"] as const,
+    fn: async (input, deps, cache) => {
+      await cache.adapter.incrby(`balance:${input.to}`, deps.debit)
+      return deps.debit
+    },
+    undo: async (input, result, cache) => {
+      // Reverse the credit
+      await cache.adapter.decrby(`balance:${input.to}`, result)
+    },
+  })
+  .build()
+
+const result = await transferFunds.run(cache, { from: "alice", to: "bob", amount: 100 }, {
+  rollbackOnFailure: true,
+})
+
+if (!result.success) {
+  console.log(result.rolledBack)      // true
+  console.log(result.rollbackErrors)  // errors from undo handlers (best-effort)
+}
+```
+
+Key design decisions:
+- **Opt-in** — `rollbackOnFailure` defaults to `false`
+- **Best-effort** — undo errors are collected in `rollbackErrors`, not thrown; other undos still run
+- **Reverse order** — last completed step is undone first
+- Each undo handler receives `(input, stepResult, cache)` — the original action input and the result of that specific step
+
+### Type safety
+
+The builder accumulates step result types via TypeScript intersection:
+
+```typescript
+defineAction<{ id: string }>("example")      // CacheActionBuilder<Input, {}>
+  .step("a", { ... })                         // CacheActionBuilder<Input, { a: number }>
+  .compute("b", { dependsOn: ["a"] as const,  // CacheActionBuilder<Input, { a: number } & { b: string }>
+    fn: (input, deps) => {
+      deps.a  // typed as number
+      return "hello"
+    }
+  })
+```
+
+- Step name uniqueness is enforced at the type level — duplicate names produce a `never` type error
+- `dependsOn` must use `as const` to narrow the tuple for typed `deps`
+- `ActionResult.results` is typed as `Partial<TSteps>` — all accumulated step results
+
+---
+
 ## Import Summary
 
 All new features are exported from the main `cachyer` package:
@@ -574,4 +847,8 @@ import { createHyperLogLogSchema } from 'cachyer'
 
 // Bloom Filter Schema
 import { createBloomFilterSchema } from 'cachyer'
+
+// CacheAction (Multi-Step Workflows)
+import { defineAction, CacheAction, pipelineEntry } from 'cachyer'
+import type { ActionResult, ActionErrorStrategy, ActionExecuteOptions } from 'cachyer'
 ```

@@ -52,6 +52,14 @@ export {
   RateLimitScripts,
 } from "./services";
 
+// Actions
+export { defineAction, CacheAction } from "./actions";
+export type {
+  ActionResult,
+  ActionErrorStrategy,
+  ActionExecuteOptions,
+} from "./actions";
+
 // Utils
 export * from "./utils";
 
