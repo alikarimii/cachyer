@@ -1,6 +1,6 @@
 {
   "name": "cachyer",
-  "version": "1.4.5",
+  "version": "1.5.0",
   "description": "A flexible, type-safe caching layer with support for multiple database adapters (Redis, MongoDB, PostgreSQL, CouchDB, and more)",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -55,6 +55,16 @@
     "lua-scripts"
   ],
   "author": "Ali Karimi",
+  "contributors": [
+    {
+      "name": "Ali Karimi",
+      "url": "https://github.com/alikarimii"
+    },
+    {
+      "name": "Claude (Anthropic)",
+      "url": "https://claude.ai"
+    }
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
