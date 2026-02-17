@@ -284,6 +284,46 @@ export type ListGetByIndexOperation<
 > = CacheOperation<TKeyParams & { index: number }, TResult>;
 
 // =============================================
+// HYPERLOGLOG TYPES
+// =============================================
+
+export type HyperLogLogAddOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { members: string[] }, number>;
+
+export type HyperLogLogCountOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams, number>;
+
+export type HyperLogLogMergeOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { sourceKeys: string[] }, "OK">;
+
+// =============================================
+// BLOOM FILTER OPERATION TYPE DEFINITIONS
+// =============================================
+
+export type BloomFilterAddOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { item: string }, boolean>;
+
+export type BloomFilterMultiAddOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { items: string[] }, boolean[]>;
+
+export type BloomFilterExistsOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { item: string }, boolean>;
+
+export type BloomFilterMultiExistsOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { items: string[] }, boolean[]>;
+
+export type BloomFilterReserveOperation<
+  TKeyParams extends Record<string, unknown>,
+> = CacheOperation<TKeyParams & { errorRate: number; capacity: number }, "OK">;
+
+// =============================================
 // TYPED OPERATION BUILDER
 // =============================================
 /**
@@ -541,13 +581,13 @@ export class TypedOperationBuilder<
   /**
    * Add a hash HSET operation
    */
-  addHashSet<TName extends string = "hashSetField">(
+  addHashSet<TName extends string = "hashSet">(
     name?: TName,
   ): TypedOperationBuilder<
     TKeyParams,
     TOperations & { [K in TName]: HashSetOperation<TKeyParams> }
   > {
-    const opName = (name ?? "hashSetField") as TName;
+    const opName = (name ?? "hashSet") as TName;
     const operation: HashSetOperation<TKeyParams> = {
       command: "HSET",
       buildArgs: (params: TKeyParams & { field: string; value: string }) => [
@@ -1247,6 +1287,186 @@ export class TypedOperationBuilder<
   }
 
   /**
+   * Add a PFADD operation (HyperLogLog add)
+   */
+  addHyperLogLogAdd<TName extends string = "hyperLogLogAdd">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: HyperLogLogAddOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "hyperLogLogAdd") as TName;
+    const operation: HyperLogLogAddOperation<TKeyParams> = {
+      command: "PFADD",
+      buildArgs: (params: TKeyParams & { members: string[] }) => [
+        this.keyBuilder(params),
+        ...params.members,
+      ],
+      parseResult: (r) => r as number,
+      description: `Add to HyperLogLog`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  /**
+   * Add a PFCOUNT operation (HyperLogLog count)
+   */
+  addHyperLogLogCount<TName extends string = "hyperLogLogCount">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: HyperLogLogCountOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "hyperLogLogCount") as TName;
+    const operation: HyperLogLogCountOperation<TKeyParams> = {
+      command: "PFCOUNT",
+      buildArgs: (params: TKeyParams) => [this.keyBuilder(params)],
+      parseResult: (r) => r as number,
+      description: `Count HyperLogLog approximate cardinality`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  /**
+   * Add a PFMERGE operation (HyperLogLog merge)
+   */
+  addHyperLogLogMerge<TName extends string = "hyperLogLogMerge">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: HyperLogLogMergeOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "hyperLogLogMerge") as TName;
+    const operation: HyperLogLogMergeOperation<TKeyParams> = {
+      command: "PFMERGE",
+      buildArgs: (params: TKeyParams & { sourceKeys: string[] }) => [
+        this.keyBuilder(params),
+        ...params.sourceKeys,
+      ],
+      parseResult: (r) => r as "OK",
+      description: `Merge HyperLogLog keys`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  // =============================================
+  // BLOOM FILTER OPERATIONS
+  // =============================================
+
+  /**
+   * Add a BF.ADD operation (Bloom filter add single item)
+   */
+  addBloomFilterAdd<TName extends string = "bloomFilterAdd">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: BloomFilterAddOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "bloomFilterAdd") as TName;
+    const operation: BloomFilterAddOperation<TKeyParams> = {
+      command: "BF.ADD",
+      buildArgs: (params: TKeyParams & { item: string }) => [
+        this.keyBuilder(params),
+        params.item,
+      ],
+      parseResult: (r) => r === 1 || r === true,
+      description: `Add item to Bloom filter`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  /**
+   * Add a BF.MADD operation (Bloom filter add multiple items)
+   */
+  addBloomFilterMultiAdd<TName extends string = "bloomFilterMultiAdd">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: BloomFilterMultiAddOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "bloomFilterMultiAdd") as TName;
+    const operation: BloomFilterMultiAddOperation<TKeyParams> = {
+      command: "BF.MADD",
+      buildArgs: (params: TKeyParams & { items: string[] }) => [
+        this.keyBuilder(params),
+        ...params.items,
+      ],
+      parseResult: (r) =>
+        (r as (number | boolean)[]).map((v) => v === 1 || v === true),
+      description: `Add multiple items to Bloom filter`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  /**
+   * Add a BF.EXISTS operation (Bloom filter check single item)
+   */
+  addBloomFilterExists<TName extends string = "bloomFilterExists">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: BloomFilterExistsOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "bloomFilterExists") as TName;
+    const operation: BloomFilterExistsOperation<TKeyParams> = {
+      command: "BF.EXISTS",
+      buildArgs: (params: TKeyParams & { item: string }) => [
+        this.keyBuilder(params),
+        params.item,
+      ],
+      parseResult: (r) => r === 1 || r === true,
+      description: `Check if item exists in Bloom filter`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  /**
+   * Add a BF.MEXISTS operation (Bloom filter check multiple items)
+   */
+  addBloomFilterMultiExists<TName extends string = "bloomFilterMultiExists">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & {
+      [K in TName]: BloomFilterMultiExistsOperation<TKeyParams>;
+    }
+  > {
+    const opName = (name ?? "bloomFilterMultiExists") as TName;
+    const operation: BloomFilterMultiExistsOperation<TKeyParams> = {
+      command: "BF.MEXISTS",
+      buildArgs: (params: TKeyParams & { items: string[] }) => [
+        this.keyBuilder(params),
+        ...params.items,
+      ],
+      parseResult: (r) =>
+        (r as (number | boolean)[]).map((v) => v === 1 || v === true),
+      description: `Check if multiple items exist in Bloom filter`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  /**
+   * Add a BF.RESERVE operation (Bloom filter reserve with error rate and capacity)
+   */
+  addBloomFilterReserve<TName extends string = "bloomFilterReserve">(
+    name?: TName,
+  ): TypedOperationBuilder<
+    TKeyParams,
+    TOperations & { [K in TName]: BloomFilterReserveOperation<TKeyParams> }
+  > {
+    const opName = (name ?? "bloomFilterReserve") as TName;
+    const operation: BloomFilterReserveOperation<TKeyParams> = {
+      command: "BF.RESERVE",
+      buildArgs: (
+        params: TKeyParams & { errorRate: number; capacity: number },
+      ) => [this.keyBuilder(params), params.errorRate, params.capacity],
+      parseResult: (r) => r as "OK",
+      description: `Reserve a Bloom filter with error rate and capacity`,
+    };
+    return this.withOperation(opName, operation);
+  }
+
+  /**
    * Add a custom operation
    */
   addCustomOperation<
@@ -1581,6 +1801,55 @@ export function createCounterSchema<TKeyParams extends Record<string, unknown>>(
         .addGet()
         .addIncrement()
         .addIncrementBy()
+        .addDelete()
+        .addExists()
+        .addExpire(undefined, ttl)
+        .addTtl(),
+    )
+    .build();
+}
+
+/**
+ * Create a HyperLogLog schema (for unique counting)
+ */
+export function createHyperLogLogSchema<
+  TKeyParams extends Record<string, unknown>,
+>(name: string, keyPattern: string, ttl: number) {
+  return createTypedSchema<TKeyParams>()
+    .name(name)
+    .keyPattern(keyPattern)
+    .structure("STRING")
+    .ttl(ttl)
+    .operations((ops) =>
+      ops
+        .addHyperLogLogAdd()
+        .addHyperLogLogCount()
+        .addDelete()
+        .addExists()
+        .addExpire(undefined, ttl)
+        .addTtl(),
+    )
+    .build();
+}
+
+/**
+ * Create a Bloom filter schema (for probabilistic membership testing)
+ */
+export function createBloomFilterSchema<
+  TKeyParams extends Record<string, unknown>,
+>(name: string, keyPattern: string, ttl: number) {
+  return createTypedSchema<TKeyParams>()
+    .name(name)
+    .keyPattern(keyPattern)
+    .structure("STRING")
+    .ttl(ttl)
+    .operations((ops) =>
+      ops
+        .addBloomFilterAdd()
+        .addBloomFilterMultiAdd()
+        .addBloomFilterExists()
+        .addBloomFilterMultiExists()
+        .addBloomFilterReserve()
         .addDelete()
         .addExists()
         .addExpire(undefined, ttl)

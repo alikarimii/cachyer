@@ -29,7 +29,7 @@ import type {
   ExecuteOptions,
   ExecuteResult,
   ExecutorMetrics,
-  PipelineEntry,
+  AnyPipelineEntry,
   PipelineResult,
   ScriptDefinition,
   TransactionResult,
@@ -399,7 +399,7 @@ export class Cachyer {
   /**
    * Execute operations in a pipeline
    */
-  async pipeline(entries: PipelineEntry[]): Promise<PipelineResult> {
+  async pipeline(entries: AnyPipelineEntry[]): Promise<PipelineResult> {
     if (typeof this.adapter.executePipeline !== "function") {
       // Fallback to sequential execution
       return this.executePipelineFallback(entries);
@@ -412,7 +412,7 @@ export class Cachyer {
   /**
    * Execute operations in a transaction
    */
-  async transaction(entries: PipelineEntry[]): Promise<TransactionResult> {
+  async transaction(entries: AnyPipelineEntry[]): Promise<TransactionResult> {
     if (typeof this.adapter.executeTransaction !== "function") {
       throw new CacheError(
         "Transactions are not supported by this adapter",
@@ -660,6 +660,50 @@ export class Cachyer {
   }
 
   /**
+   * Get or fetch a string value (cache-aside pattern)
+   */
+  async getOrFetch<T = string>(
+    key: string,
+    fetchFn: () => Promise<T>,
+    ttl?: number,
+  ): Promise<T> {
+    const cached = await this.get(key);
+    if (cached !== null) {
+      return this.config.serializer.deserialize(cached) as T;
+    }
+
+    const value = await fetchFn();
+    const serialized = this.config.serializer.serialize(value);
+    const effectiveTtl = ttl ?? this.config.defaultTtl;
+    await this.set(key, String(serialized), { ex: effectiveTtl });
+    return value;
+  }
+
+  /**
+   * Get or fetch a hash value (cache-aside pattern)
+   */
+  async getOrFetchHash<T extends Record<string, string>>(
+    key: string,
+    fetchFn: () => Promise<T>,
+    ttl?: number,
+  ): Promise<T> {
+    const cached = await this.hgetall(key);
+    if (cached && Object.keys(cached).length > 0) {
+      return cached as T;
+    }
+
+    const value = await fetchFn();
+    const prefixedKey = this.prefixKey(key);
+    // Set all hash fields
+    for (const [field, val] of Object.entries(value)) {
+      await this._adapter.hset(prefixedKey, field, val);
+    }
+    const effectiveTtl = ttl ?? this.config.defaultTtl;
+    await this._adapter.expire(prefixedKey, effectiveTtl);
+    return value;
+  }
+
+  /**
    * Scan keys
    */
   async scan(
@@ -830,7 +874,7 @@ export class Cachyer {
     return args;
   }
 
-  private prefixPipelineEntries(entries: PipelineEntry[]): PipelineEntry[] {
+  private prefixPipelineEntries(entries: AnyPipelineEntry[]): AnyPipelineEntry[] {
     return entries.map((entry) => ({
       ...entry,
       operation: {
@@ -843,12 +887,21 @@ export class Cachyer {
     }));
   }
 
+  private static readonly COMMAND_METHOD_MAP: Record<string, string> = {
+    "BF.ADD": "bfAdd",
+    "BF.MADD": "bfMAdd",
+    "BF.EXISTS": "bfExists",
+    "BF.MEXISTS": "bfMExists",
+    "BF.RESERVE": "bfReserve",
+  };
+
   private async executeCommand(
     command: string,
     args: (string | number)[],
     timeout: number,
   ): Promise<unknown> {
-    const methodName = command.toLowerCase() as keyof CacheAdapter;
+    const methodName = (Cachyer.COMMAND_METHOD_MAP[command] ??
+      command.toLowerCase()) as keyof CacheAdapter;
     const method = this._adapter[methodName];
 
     if (typeof method !== "function") {
@@ -872,7 +925,7 @@ export class Cachyer {
   }
 
   private async executePipelineFallback(
-    entries: PipelineEntry[],
+    entries: AnyPipelineEntry[],
   ): Promise<PipelineResult> {
     const startTime = Date.now();
     const results: Array<{ success: boolean; data?: any; error?: Error }> = [];

@@ -7,8 +7,8 @@
 import type { Redis } from "ioredis";
 import type {
   AdapterConfig,
-  CacheAdapter,
   ConnectionStatus,
+  FullCacheAdapter,
 } from "../../types/adapter.types";
 import { defaultLogger } from "../../types/adapter.types";
 import type {
@@ -18,8 +18,8 @@ import type {
   SortedSetRangeOptions,
 } from "../../types/core.types";
 import type {
+  AnyPipelineEntry,
   ExecutorMetrics,
-  PipelineEntry,
   PipelineResult,
   ScriptDefinition,
   TransactionResult,
@@ -39,7 +39,7 @@ export interface RedisAdapterConfig extends AdapterConfig {
 /**
  * Redis adapter implementation
  */
-export class RedisAdapter implements CacheAdapter {
+export class RedisAdapter implements FullCacheAdapter {
   readonly name = "redis";
   private readonly client: Redis;
   private readonly config: Required<Omit<RedisAdapterConfig, "client">>;
@@ -479,6 +479,70 @@ export class RedisAdapter implements CacheAdapter {
     return this.client.zremrangebyscore(key, min, max);
   }
 
+  async zrangebyscore(
+    key: string,
+    min: number | string,
+    max: number | string,
+    options?: SortedSetRangeOptions,
+  ): Promise<string[] | Array<{ member: string; score: number }>> {
+    this.recordOperation("ZRANGEBYSCORE");
+
+    const args: (string | number)[] = [key, String(min), String(max)];
+    if (options?.withScores) args.push("WITHSCORES");
+    if (options?.limit) {
+      args.push("LIMIT", options.limit.offset, options.limit.count);
+    }
+
+    const result = await this.client.zrangebyscore(
+      ...(args as [string, string, string]),
+    );
+
+    if (options?.withScores) {
+      const parsed: Array<{ member: string; score: number }> = [];
+      for (let i = 0; i < result.length; i += 2) {
+        parsed.push({
+          member: result[i]!,
+          score: parseFloat(result[i + 1]!),
+        });
+      }
+      return parsed;
+    }
+
+    return result;
+  }
+
+  async zrevrangebyscore(
+    key: string,
+    max: number | string,
+    min: number | string,
+    options?: SortedSetRangeOptions,
+  ): Promise<string[] | Array<{ member: string; score: number }>> {
+    this.recordOperation("ZREVRANGEBYSCORE");
+
+    const args: (string | number)[] = [key, String(max), String(min)];
+    if (options?.withScores) args.push("WITHSCORES");
+    if (options?.limit) {
+      args.push("LIMIT", options.limit.offset, options.limit.count);
+    }
+
+    const result = await this.client.zrevrangebyscore(
+      ...(args as [string, string, string]),
+    );
+
+    if (options?.withScores) {
+      const parsed: Array<{ member: string; score: number }> = [];
+      for (let i = 0; i < result.length; i += 2) {
+        parsed.push({
+          member: result[i]!,
+          score: parseFloat(result[i + 1]!),
+        });
+      }
+      return parsed;
+    }
+
+    return result;
+  }
+
   // =============================================
   // KEY MANAGEMENT
   // =============================================
@@ -646,7 +710,7 @@ export class RedisAdapter implements CacheAdapter {
   // PIPELINE & TRANSACTIONS
   // =============================================
 
-  async executePipeline(entries: PipelineEntry[]): Promise<PipelineResult> {
+  async executePipeline(entries: AnyPipelineEntry[]): Promise<PipelineResult> {
     const startTime = Date.now();
     const pipeline = this.client.pipeline();
 
@@ -712,7 +776,7 @@ export class RedisAdapter implements CacheAdapter {
   }
 
   async executeTransaction(
-    entries: PipelineEntry[],
+    entries: AnyPipelineEntry[],
   ): Promise<TransactionResult> {
     const startTime = Date.now();
     const multi = this.client.multi();

@@ -26,9 +26,9 @@ import type {
   SortedSetRangeOptions,
 } from "./core.types";
 import type {
+  AnyPipelineEntry,
   ExecuteOptions,
   ExecutorMetrics,
-  PipelineEntry,
   PipelineResult,
   ScriptDefinition,
   TransactionResult,
@@ -120,7 +120,7 @@ export interface CacheAdapter {
   set(
     key: string,
     value: string,
-    options?: CacheSetOptions
+    options?: CacheSetOptions,
   ): Promise<"OK" | null>;
 
   /** Get a string value */
@@ -154,7 +154,7 @@ export interface CacheAdapter {
   /** Set multiple hash fields */
   hmset(
     key: string,
-    fieldValues: Record<string, string | number>
+    fieldValues: Record<string, string | number>,
   ): Promise<"OK">;
 
   /** Get a hash field */
@@ -242,7 +242,7 @@ export interface CacheAdapter {
   zadd(
     key: string,
     scoreMembers: Array<{ score: number; member: string }>,
-    options?: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean }
+    options?: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean },
   ): Promise<number>;
 
   /** Remove from sorted set */
@@ -262,7 +262,7 @@ export interface CacheAdapter {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>>;
 
   /** Get reverse range from sorted set */
@@ -270,7 +270,7 @@ export interface CacheAdapter {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>>;
 
   /** Get sorted set size */
@@ -280,7 +280,7 @@ export interface CacheAdapter {
   zcount(
     key: string,
     min: number | string,
-    max: number | string
+    max: number | string,
   ): Promise<number>;
 
   /** Increment member score */
@@ -293,8 +293,24 @@ export interface CacheAdapter {
   zremrangebyscore(
     key: string,
     min: number | string,
-    max: number | string
+    max: number | string,
   ): Promise<number>;
+
+  /** Get range by score (low to high) */
+  zrangebyscore(
+    key: string,
+    min: number | string,
+    max: number | string,
+    options?: SortedSetRangeOptions,
+  ): Promise<string[] | Array<{ member: string; score: number }>>;
+
+  /** Get range by score (high to low) */
+  zrevrangebyscore(
+    key: string,
+    max: number | string,
+    min: number | string,
+    options?: SortedSetRangeOptions,
+  ): Promise<string[] | Array<{ member: string; score: number }>>;
 
   // =============================================
   // KEY MANAGEMENT
@@ -333,7 +349,7 @@ export interface CacheAdapter {
   /** Scan keys with cursor */
   scan(
     cursor: number,
-    options?: CacheScanOptions
+    options?: CacheScanOptions,
   ): Promise<{ cursor: number; keys: string[] }>;
 
   // =============================================
@@ -357,7 +373,7 @@ export interface CacheAdapter {
   executeScript?<TResult>(
     script: ScriptDefinition<any, any, TResult>,
     keys: string[],
-    args: (string | number)[]
+    args: (string | number)[],
   ): Promise<TResult>;
 
   /** Load a script and get its hash */
@@ -368,10 +384,10 @@ export interface CacheAdapter {
   // =============================================
 
   /** Execute operations in a pipeline */
-  executePipeline?(entries: PipelineEntry[]): Promise<PipelineResult>;
+  executePipeline?(entries: AnyPipelineEntry[]): Promise<PipelineResult>;
 
   /** Execute operations in a transaction */
-  executeTransaction?(entries: PipelineEntry[]): Promise<TransactionResult>;
+  executeTransaction?(entries: AnyPipelineEntry[]): Promise<TransactionResult>;
 
   // =============================================
   // PUB/SUB (optional)
@@ -383,7 +399,7 @@ export interface CacheAdapter {
   /** Subscribe to a channel */
   subscribe?(
     channel: string,
-    callback: (message: string, channel: string) => void
+    callback: (message: string, channel: string) => void,
   ): Promise<void>;
 
   /** Unsubscribe from a channel */
@@ -397,7 +413,7 @@ export interface CacheAdapter {
   xadd?(
     key: string,
     id: string | "*",
-    fields: Record<string, string>
+    fields: Record<string, string>,
   ): Promise<string>;
 
   /** Read from streams */
@@ -416,7 +432,7 @@ export interface CacheAdapter {
     key: string,
     start: string,
     end: string,
-    count?: number
+    count?: number,
   ): Promise<Array<{ id: string; fields: Record<string, string> }>>;
 
   /** Get reverse range from stream */
@@ -424,7 +440,7 @@ export interface CacheAdapter {
     key: string,
     end: string,
     start: string,
-    count?: number
+    count?: number,
   ): Promise<Array<{ id: string; fields: Record<string, string> }>>;
 
   /** Get stream length */
@@ -435,7 +451,7 @@ export interface CacheAdapter {
     key: string,
     strategy: "MAXLEN" | "MINID",
     threshold: number | string,
-    approximate?: boolean
+    approximate?: boolean,
   ): Promise<number>;
 
   /** Delete entries from stream */
@@ -484,22 +500,22 @@ export interface FullCacheAdapter extends CacheAdapter {
   executeScript<TResult>(
     script: ScriptDefinition<any, any, TResult>,
     keys: string[],
-    args: (string | number)[]
+    args: (string | number)[],
   ): Promise<TResult>;
   loadScript(script: string): Promise<string>;
-  executePipeline(entries: PipelineEntry[]): Promise<PipelineResult>;
-  executeTransaction(entries: PipelineEntry[]): Promise<TransactionResult>;
+  executePipeline(entries: AnyPipelineEntry[]): Promise<PipelineResult>;
+  executeTransaction(entries: AnyPipelineEntry[]): Promise<TransactionResult>;
   publish(channel: string, message: string): Promise<number>;
   subscribe(
     channel: string,
-    callback: (message: string, channel: string) => void
+    callback: (message: string, channel: string) => void,
   ): Promise<void>;
   unsubscribe(channel: string): Promise<void>;
   // Stream operations
   xadd(
     key: string,
     id: string | "*",
-    fields: Record<string, string>
+    fields: Record<string, string>,
   ): Promise<string>;
   xread(options: {
     streams: string[];
@@ -514,20 +530,20 @@ export interface FullCacheAdapter extends CacheAdapter {
     key: string,
     start: string,
     end: string,
-    count?: number
+    count?: number,
   ): Promise<Array<{ id: string; fields: Record<string, string> }>>;
   xrevrange(
     key: string,
     end: string,
     start: string,
-    count?: number
+    count?: number,
   ): Promise<Array<{ id: string; fields: Record<string, string> }>>;
   xlen(key: string): Promise<number>;
   xtrim(
     key: string,
     strategy: "MAXLEN" | "MINID",
     threshold: number | string,
-    approximate?: boolean
+    approximate?: boolean,
   ): Promise<number>;
   xdel(key: string, ...ids: string[]): Promise<number>;
   // Bloom filter operations
@@ -543,7 +559,7 @@ export interface FullCacheAdapter extends CacheAdapter {
  */
 export function adapterSupports<K extends keyof FullCacheAdapter>(
   adapter: CacheAdapter,
-  feature: K
+  feature: K,
 ): adapter is CacheAdapter & Pick<FullCacheAdapter, K> {
   return typeof (adapter as any)[feature] === "function";
 }
@@ -565,7 +581,7 @@ export interface AdapterCapabilities {
  * Get adapter capabilities
  */
 export function getAdapterCapabilities(
-  adapter: CacheAdapter
+  adapter: CacheAdapter,
 ): AdapterCapabilities {
   return {
     hyperloglog: typeof adapter.pfadd === "function",

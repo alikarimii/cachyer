@@ -18,8 +18,8 @@ import type {
   SortedSetRangeOptions,
 } from "../../types/core.types";
 import type {
+  AnyPipelineEntry,
   ExecutorMetrics,
-  PipelineEntry,
   PipelineResult,
   TransactionResult,
 } from "../../types/operation.types";
@@ -120,7 +120,7 @@ export class MemoryAdapter implements CacheAdapter {
   async set(
     key: string,
     value: string,
-    options?: CacheSetOptions
+    options?: CacheSetOptions,
   ): Promise<"OK" | null> {
     this.recordOperation("SET");
 
@@ -214,7 +214,7 @@ export class MemoryAdapter implements CacheAdapter {
 
   async hmset(
     key: string,
-    fieldValues: Record<string, string | number>
+    fieldValues: Record<string, string | number>,
   ): Promise<"OK"> {
     this.recordOperation("HMSET");
     const entry = this.getEntry(key);
@@ -276,7 +276,7 @@ export class MemoryAdapter implements CacheAdapter {
   async hincrby(
     key: string,
     field: string,
-    increment: number
+    increment: number,
   ): Promise<number> {
     this.recordOperation("HINCRBY");
     const entry = this.getEntry(key);
@@ -493,7 +493,7 @@ export class MemoryAdapter implements CacheAdapter {
   async zadd(
     key: string,
     scoreMembers: Array<{ score: number; member: string }>,
-    options?: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean }
+    options?: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean },
   ): Promise<number> {
     this.recordOperation("ZADD");
     const entry = this.getEntry(key);
@@ -559,7 +559,7 @@ export class MemoryAdapter implements CacheAdapter {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>> {
     this.recordOperation("ZRANGE");
     const sorted = this.getSortedZSetEntries(key);
@@ -576,7 +576,7 @@ export class MemoryAdapter implements CacheAdapter {
     key: string,
     start: number,
     stop: number,
-    options?: SortedSetRangeOptions
+    options?: SortedSetRangeOptions,
   ): Promise<string[] | Array<{ member: string; score: number }>> {
     this.recordOperation("ZREVRANGE");
     const sorted = this.getSortedZSetEntries(key).reverse();
@@ -599,7 +599,7 @@ export class MemoryAdapter implements CacheAdapter {
   async zcount(
     key: string,
     min: number | string,
-    max: number | string
+    max: number | string,
   ): Promise<number> {
     this.recordOperation("ZCOUNT");
     const entry = this.getEntry(key);
@@ -618,7 +618,7 @@ export class MemoryAdapter implements CacheAdapter {
   async zincrby(
     key: string,
     increment: number,
-    member: string
+    member: string,
   ): Promise<string> {
     this.recordOperation("ZINCRBY");
     const entry = this.getEntry(key);
@@ -638,7 +638,7 @@ export class MemoryAdapter implements CacheAdapter {
   async zremrangebyrank(
     key: string,
     start: number,
-    stop: number
+    stop: number,
   ): Promise<number> {
     this.recordOperation("ZREMRANGEBYRANK");
     const entry = this.getEntry(key);
@@ -657,7 +657,7 @@ export class MemoryAdapter implements CacheAdapter {
   async zremrangebyscore(
     key: string,
     min: number | string,
-    max: number | string
+    max: number | string,
   ): Promise<number> {
     this.recordOperation("ZREMRANGEBYSCORE");
     const entry = this.getEntry(key);
@@ -677,6 +677,81 @@ export class MemoryAdapter implements CacheAdapter {
       entry.value.delete(member);
     }
     return toRemove.length;
+  }
+
+  async zrangebyscore(
+    key: string,
+    min: number | string,
+    max: number | string,
+    options?: SortedSetRangeOptions,
+  ): Promise<string[] | Array<{ member: string; score: number }>> {
+    this.recordOperation("ZRANGEBYSCORE");
+    const sorted = this.getSortedZSetEntries(key);
+    const { minVal, minExclusive } = this.parseScoreBound(min);
+    const { minVal: maxVal, minExclusive: maxExclusive } =
+      this.parseScoreBound(max);
+
+    let filtered = sorted.filter(([, score]) => {
+      const aboveMin = minExclusive ? score > minVal : score >= minVal;
+      const belowMax = maxExclusive ? score < maxVal : score <= maxVal;
+      return aboveMin && belowMax;
+    });
+
+    if (options?.limit) {
+      filtered = filtered.slice(
+        options.limit.offset,
+        options.limit.offset + options.limit.count,
+      );
+    }
+
+    if (options?.withScores) {
+      return filtered.map(([member, score]) => ({ member, score }));
+    }
+    return filtered.map(([member]) => member);
+  }
+
+  async zrevrangebyscore(
+    key: string,
+    max: number | string,
+    min: number | string,
+    options?: SortedSetRangeOptions,
+  ): Promise<string[] | Array<{ member: string; score: number }>> {
+    this.recordOperation("ZREVRANGEBYSCORE");
+    const sorted = this.getSortedZSetEntries(key).reverse();
+    const { minVal, minExclusive } = this.parseScoreBound(min);
+    const { minVal: maxVal, minExclusive: maxExclusive } =
+      this.parseScoreBound(max);
+
+    let filtered = sorted.filter(([, score]) => {
+      const aboveMin = minExclusive ? score > minVal : score >= minVal;
+      const belowMax = maxExclusive ? score < maxVal : score <= maxVal;
+      return aboveMin && belowMax;
+    });
+
+    if (options?.limit) {
+      filtered = filtered.slice(
+        options.limit.offset,
+        options.limit.offset + options.limit.count,
+      );
+    }
+
+    if (options?.withScores) {
+      return filtered.map(([member, score]) => ({ member, score }));
+    }
+    return filtered.map(([member]) => member);
+  }
+
+  private parseScoreBound(bound: number | string): {
+    minVal: number;
+    minExclusive: boolean;
+  } {
+    const str = String(bound);
+    if (str === "-inf") return { minVal: -Infinity, minExclusive: false };
+    if (str === "+inf") return { minVal: Infinity, minExclusive: false };
+    if (str.startsWith("(")) {
+      return { minVal: Number(str.slice(1)), minExclusive: true };
+    }
+    return { minVal: Number(str), minExclusive: false };
   }
 
   // =============================================
@@ -773,7 +848,7 @@ export class MemoryAdapter implements CacheAdapter {
 
   async scan(
     cursor: number,
-    options?: CacheScanOptions
+    options?: CacheScanOptions,
   ): Promise<{ cursor: number; keys: string[] }> {
     this.recordOperation("SCAN");
     const allKeys = await this.keys(options?.match ?? "*");
@@ -840,7 +915,7 @@ export class MemoryAdapter implements CacheAdapter {
   // PIPELINE & TRANSACTIONS
   // =============================================
 
-  async executePipeline(entries: PipelineEntry[]): Promise<PipelineResult> {
+  async executePipeline(entries: AnyPipelineEntry[]): Promise<PipelineResult> {
     const startTime = Date.now();
     const results: Array<{ success: boolean; data?: any; error?: Error }> = [];
 
@@ -876,7 +951,7 @@ export class MemoryAdapter implements CacheAdapter {
   }
 
   async executeTransaction(
-    entries: PipelineEntry[]
+    entries: AnyPipelineEntry[],
   ): Promise<TransactionResult> {
     // In-memory adapter doesn't need real transactions
     const result = await this.executePipeline(entries);
@@ -1002,7 +1077,7 @@ export class MemoryAdapter implements CacheAdapter {
  * Create a memory adapter
  */
 export function createMemoryAdapter(
-  config?: MemoryAdapterConfig
+  config?: MemoryAdapterConfig,
 ): MemoryAdapter {
   return new MemoryAdapter(config);
 }

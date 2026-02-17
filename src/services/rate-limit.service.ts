@@ -186,23 +186,21 @@ export class RateLimitService {
     key: string,
     config: RateLimitConfig,
   ): Promise<RateLimitResult & { headers: RateLimitHeaders }> {
-    const current = await this.adapter.get(key);
-    const count = current ? parseInt(current, 10) : 0;
-    const allowed = count < config.maxRequests;
+    // Atomic: INCR first, then check against limit
+    const count = await this.adapter.incr(key);
 
-    if (allowed) {
-      const newCount = await this.adapter.incr(key);
-      if (newCount === 1) {
-        await this.adapter.expire(key, config.windowSeconds);
-      }
+    if (count === 1) {
+      await this.adapter.expire(key, config.windowSeconds);
     }
+
+    const allowed = count <= config.maxRequests;
 
     const ttl = await this.adapter.ttl(key);
     const effectiveTtl = ttl > 0 ? ttl : config.windowSeconds;
 
     const result: RateLimitResult = {
       allowed,
-      remaining: Math.max(0, config.maxRequests - (count + (allowed ? 1 : 0))),
+      remaining: Math.max(0, config.maxRequests - count),
       resetAt: Date.now() + effectiveTtl * 1000,
       retryAfter: allowed ? undefined : effectiveTtl,
     };

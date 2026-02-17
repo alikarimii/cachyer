@@ -16,7 +16,7 @@ async function run() {
   console.log(
     `Setting multiple fields in hash... ${simpleCache.key({ id: "1" })}`,
   );
-  const value = await cachyer.execute(simpleCache.operations.hashSetField, {
+  const value = await cachyer.execute(simpleCache.operations.hashSet, {
     id: "1",
     field: "name",
     value: "Cachyer",

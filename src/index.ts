@@ -36,8 +36,21 @@ export type { MemoryAdapterConfig } from "./adapters/memory";
 export * from "./schemas";
 
 // Services
-export { RateLimitService } from "./services";
+export { RateLimitService, createRateLimitService } from "./services";
 export type { RateLimitHeaders, RateLimitServiceConfig } from "./services";
+export { LockService, createLockService } from "./services";
+export type { LockOptions, LockResult, LockServiceConfig } from "./services";
+export {
+  tokenBucketRateLimitScript,
+  multiTierRateLimitScript,
+  quotaRateLimitScript,
+  buildTokenBucketParams,
+  buildMultiTierParams,
+  buildQuotaParams,
+  getNextDailyReset,
+  getNextMonthlyReset,
+  RateLimitScripts,
+} from "./services";
 
 // Utils
 export * from "./utils";
@@ -89,4 +102,4 @@ export function createMemoryCachyer(options?: {
   });
 }
 
-export { createRateLimitService } from "./services";
+

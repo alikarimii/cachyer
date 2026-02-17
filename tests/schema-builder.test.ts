@@ -247,9 +247,9 @@ describe("TypedSchemaBuilder", () => {
       it("should addHashSet", () => {
         const builder = new TypedOperationBuilder<TestKeyParams>(keyBuilder);
         const ops = builder.addHashSet().getOperations();
-        expect(ops.hashSetField.command).toBe("HSET");
+        expect(ops.hashSet.command).toBe("HSET");
         expect(
-          ops.hashSetField.buildArgs({
+          ops.hashSet.buildArgs({
             userId: "1",
             field: "name",
             value: "Ali",
@@ -578,7 +578,7 @@ describe("TypedSchemaBuilder", () => {
       expect(schema.structure).toBe("HASH");
       expect(schema.operations.hashGetAll).toBeDefined();
       expect(schema.operations.hashGetField).toBeDefined();
-      expect(schema.operations.hashSetField).toBeDefined();
+      expect(schema.operations.hashSet).toBeDefined();
       expect(schema.operations.hashSetMultiple).toBeDefined();
       expect(schema.operations.delete).toBeDefined();
       expect(schema.operations.exists).toBeDefined();
