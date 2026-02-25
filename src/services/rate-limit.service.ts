@@ -148,8 +148,9 @@ export class RateLimitService {
   async check(
     identifier: string,
     endpoint: string,
+    config?: RateLimitConfig,
   ): Promise<RateLimitResult & { headers: RateLimitHeaders }> {
-    const cfg = this.getConfig(endpoint);
+    const cfg = config ?? this.getConfig(endpoint);
     const key = this.buildKey(identifier, endpoint);
 
     if (typeof this.adapter.executeScript === "function") {

@@ -223,6 +223,12 @@ const result = await rateLimiter.check("user123", "api:create");
 if (!result.allowed) {
   console.log(`Retry after ${result.retryAfter}s`);
 }
+
+// Or override config per-call
+const custom = await rateLimiter.check("user123", "api:custom", {
+  maxRequests: 5,
+  windowSeconds: 30,
+});
 ```
 
 See [docs/rate-limiting.md](./docs/rate-limiting.md) for sliding window, token bucket, multi-tier, and quota-based strategies.
@@ -319,17 +325,18 @@ TTL.ONE_MONTH; // 2592000
 
 ## Documentation
 
-| Topic                                        | Link                                               |
-| -------------------------------------------- | -------------------------------------------------- |
-| Architecture (two-layer design)              | [docs/architecture.md](./docs/architecture.md)     |
-| Schema Builder & Templates                   | [docs/schema-builder.md](./docs/schema-builder.md) |
-| Key Patterns                                 | [docs/key-patterns.md](./docs/key-patterns.md)     |
-| CacheAction (Workflows)                      | [docs/actions.md](./docs/actions.md)               |
-| Rate Limiting                                | [docs/rate-limiting.md](./docs/rate-limiting.md)   |
-| Distributed Lock Service                     | [docs/lock-service.md](./docs/lock-service.md)     |
-| Adapters (Redis, Memory, Custom)             | [docs/adapters.md](./docs/adapters.md)             |
-| Utilities (Cache-Aside, Pagination, Scoring) | [docs/utilities.md](./docs/utilities.md)           |
-| **AI/LLM Reference**                         | [docs/ai-reference.md](./docs/ai-reference.md)     |
+| Topic                                        | Link                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| Architecture (two-layer design)              | [docs/architecture.md](./docs/architecture.md)                       |
+| Schema Builder & Templates                   | [docs/schema-builder.md](./docs/schema-builder.md)                   |
+| Key Patterns                                 | [docs/key-patterns.md](./docs/key-patterns.md)                       |
+| CacheAction (Workflows)                      | [docs/actions.md](./docs/actions.md)                                 |
+| Rate Limiting                                | [docs/rate-limiting.md](./docs/rate-limiting.md)                     |
+| Pipeline vs Transaction vs Lua Script        | [docs/pipeline-vs-transaction.md](./docs/pipeline-vs-transaction.md) |
+| Distributed Lock Service                     | [docs/lock-service.md](./docs/lock-service.md)                       |
+| Adapters (Redis, Memory, Custom)             | [docs/adapters.md](./docs/adapters.md)                               |
+| Utilities (Cache-Aside, Pagination, Scoring) | [docs/utilities.md](./docs/utilities.md)                             |
+| **AI/LLM Reference**                         | [docs/ai-reference.md](./docs/ai-reference.md)                       |
 
 ### For AI Coding Assistants
 
