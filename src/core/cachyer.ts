@@ -887,39 +887,18 @@ export class Cachyer {
     }));
   }
 
-  private static readonly COMMAND_METHOD_MAP: Record<string, string> = {
-    "BF.ADD": "bfAdd",
-    "BF.MADD": "bfMAdd",
-    "BF.EXISTS": "bfExists",
-    "BF.MEXISTS": "bfMExists",
-    "BF.RESERVE": "bfReserve",
-  };
-
   private async executeCommand(
     command: string,
     args: (string | number)[],
     timeout: number,
   ): Promise<unknown> {
-    const methodName = (Cachyer.COMMAND_METHOD_MAP[command] ??
-      command.toLowerCase()) as keyof CacheAdapter;
-    const method = this._adapter[methodName];
-
-    if (typeof method !== "function") {
-      throw new CacheError(
-        `Command ${command} is not supported by this adapter`,
-        CacheErrorCode.ADAPTER_NOT_SUPPORTED,
-      );
-    }
-
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
         reject(new Error(`Operation ${command} timed out after ${timeout}ms`));
       }, timeout);
     });
 
-    const commandPromise = (
-      method as (...a: unknown[]) => Promise<unknown>
-    ).apply(this._adapter, args);
+    const commandPromise = this._adapter.executeRaw(command, args);
 
     return Promise.race([commandPromise, timeoutPromise]);
   }

@@ -367,6 +367,14 @@ export class RedisAdapter implements FullCacheAdapter {
     return this.client.call("ZADD", ...args) as Promise<number>;
   }
 
+  async executeRaw(
+    command: string,
+    args: (string | number)[],
+  ): Promise<unknown> {
+    this.recordOperation(command);
+    return this.client.call(command.toUpperCase(), ...args);
+  }
+
   async zrem(key: string, ...members: string[]): Promise<number> {
     this.recordOperation("ZREM");
     return this.client.zrem(key, ...members);

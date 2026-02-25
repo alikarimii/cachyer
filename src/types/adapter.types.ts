@@ -245,6 +245,13 @@ export interface CacheAdapter {
     options?: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean },
   ): Promise<number>;
 
+  /**
+   * Execute a raw Redis protocol command with flat args.
+   * Used internally by Cachyer.executeCommand so that operation buildArgs
+   * (which produce raw Redis protocol) don't leak into the typed adapter API.
+   */
+  executeRaw(command: string, args: (string | number)[]): Promise<unknown>;
+
   /** Remove from sorted set */
   zrem(key: string, ...members: string[]): Promise<number>;
 

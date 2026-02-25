@@ -76,9 +76,7 @@ const userSchema = createTypedSchema<{ userId: string }>()
   .keyPattern("user:{userId}")
   .structure("HASH")
   .ttl(TTL.ONE_HOUR)
-  .operations((ops) =>
-    ops.addHashGetAll().addHashSet().addDelete().addExpire(),
-  )
+  .operations((ops) => ops.addHashGetAll().addHashSet().addDelete().addExpire())
   .build();
 
 const data = await cache.execute(userSchema.operations.hashGetAll, {
@@ -89,11 +87,28 @@ const data = await cache.execute(userSchema.operations.hashGetAll, {
 Pre-built templates for common patterns:
 
 ```typescript
-import { createHashSchema, createSortedSetSchema, createCounterSchema } from "cachyer";
+import {
+  createHashSchema,
+  createSortedSetSchema,
+  createCounterSchema,
+} from "cachyer";
 
-const userSchema    = createHashSchema<{ userId: string }>("user", "user:{userId}", 7200);
-const feedSchema    = createSortedSetSchema<{ userId: string }>("feed", "user:feed:{userId}", 3600, 500);
-const counterSchema = createCounterSchema<{ userId: string }>("counter", "api:count:{userId}", 60);
+const userSchema = createHashSchema<{ userId: string }>(
+  "user",
+  "user:{userId}",
+  7200,
+);
+const feedSchema = createSortedSetSchema<{ userId: string }>(
+  "feed",
+  "user:feed:{userId}",
+  3600,
+  500,
+);
+const counterSchema = createCounterSchema<{ userId: string }>(
+  "counter",
+  "api:count:{userId}",
+  60,
+);
 ```
 
 See [docs/schema-builder.md](./docs/schema-builder.md) for the full builder API, custom operations, and all available operation methods.
@@ -114,7 +129,11 @@ const result = await cache.pipeline([
 // Atomic transactions
 const txResult = await cache.transaction([
   pipelineEntry(counterSchema.operations.increment, { userId: "1" }),
-  pipelineEntry(feedSchema.operations.add, { userId: "1", member: "post:123", score: Date.now() }),
+  pipelineEntry(feedSchema.operations.add, {
+    userId: "1",
+    member: "post:123",
+    score: Date.now(),
+  }),
 ]);
 ```
 
@@ -145,9 +164,13 @@ const postLiked = defineAction<{ postId: string; userId: string }>("post-liked")
   .onError("skip-dependents")
   .build();
 
-const result = await postLiked.run(cache, { postId: "p1", userId: "u1" }, {
-  rollbackOnFailure: true,
-});
+const result = await postLiked.run(
+  cache,
+  { postId: "p1", userId: "u1" },
+  {
+    rollbackOnFailure: true,
+  },
+);
 ```
 
 See [docs/actions.md](./docs/actions.md) for step types, error strategies, retry configuration, and rollback.
@@ -164,15 +187,18 @@ const userKey = createKeyBuilder<{ userId: string }>("user:profile:{userId}");
 userKey({ userId: "123" }); // "user:profile:123"
 
 // Organized key patterns for larger apps
-const keys = createKeyPatterns({
-  user: {
-    profile: { pattern: "user:profile:{userId}" },
-    feed: { pattern: "user:feed:{userId}" },
+const keys = createKeyPatterns(
+  {
+    user: {
+      profile: { pattern: "user:profile:{userId}" },
+      feed: { pattern: "user:feed:{userId}" },
+    },
+    post: {
+      data: { pattern: "post:{postId}" },
+    },
   },
-  post: {
-    data: { pattern: "post:{postId}" },
-  },
-}, { prefix: "myapp" });
+  { prefix: "myapp" },
+);
 
 keys.user.profile({ userId: "123" }); // "myapp:user:profile:123"
 ```
@@ -264,9 +290,12 @@ try {
 } catch (error) {
   if (error instanceof CacheError) {
     switch (error.code) {
-      case CacheErrorCode.CONNECTION_ERROR: break;
-      case CacheErrorCode.TIMEOUT_ERROR: break;
-      case CacheErrorCode.COMMAND_ERROR: break;
+      case CacheErrorCode.CONNECTION_ERROR:
+        break;
+      case CacheErrorCode.TIMEOUT_ERROR:
+        break;
+      case CacheErrorCode.COMMAND_ERROR:
+        break;
     }
   }
 }
@@ -277,29 +306,36 @@ try {
 ```typescript
 import { TTL } from "cachyer";
 
-TTL.ONE_MINUTE;       // 60
-TTL.FIVE_MINUTES;     // 300
-TTL.FIFTEEN_MINUTES;  // 900
-TTL.THIRTY_MINUTES;   // 1800
-TTL.ONE_HOUR;         // 3600
-TTL.SIX_HOURS;        // 21600
-TTL.ONE_DAY;          // 86400
-TTL.ONE_WEEK;         // 604800
-TTL.ONE_MONTH;        // 2592000
+TTL.ONE_MINUTE; // 60
+TTL.FIVE_MINUTES; // 300
+TTL.FIFTEEN_MINUTES; // 900
+TTL.THIRTY_MINUTES; // 1800
+TTL.ONE_HOUR; // 3600
+TTL.SIX_HOURS; // 21600
+TTL.ONE_DAY; // 86400
+TTL.ONE_WEEK; // 604800
+TTL.ONE_MONTH; // 2592000
 ```
 
 ## Documentation
 
-| Topic | Link |
-|-------|------|
-| Architecture (two-layer design) | [docs/architecture.md](./docs/architecture.md) |
-| Schema Builder & Templates | [docs/schema-builder.md](./docs/schema-builder.md) |
-| Key Patterns | [docs/key-patterns.md](./docs/key-patterns.md) |
-| CacheAction (Workflows) | [docs/actions.md](./docs/actions.md) |
-| Rate Limiting | [docs/rate-limiting.md](./docs/rate-limiting.md) |
-| Distributed Lock Service | [docs/lock-service.md](./docs/lock-service.md) |
-| Adapters (Redis, Memory, Custom) | [docs/adapters.md](./docs/adapters.md) |
-| Utilities (Cache-Aside, Pagination, Scoring) | [docs/utilities.md](./docs/utilities.md) |
+| Topic                                        | Link                                               |
+| -------------------------------------------- | -------------------------------------------------- |
+| Architecture (two-layer design)              | [docs/architecture.md](./docs/architecture.md)     |
+| Schema Builder & Templates                   | [docs/schema-builder.md](./docs/schema-builder.md) |
+| Key Patterns                                 | [docs/key-patterns.md](./docs/key-patterns.md)     |
+| CacheAction (Workflows)                      | [docs/actions.md](./docs/actions.md)               |
+| Rate Limiting                                | [docs/rate-limiting.md](./docs/rate-limiting.md)   |
+| Distributed Lock Service                     | [docs/lock-service.md](./docs/lock-service.md)     |
+| Adapters (Redis, Memory, Custom)             | [docs/adapters.md](./docs/adapters.md)             |
+| Utilities (Cache-Aside, Pagination, Scoring) | [docs/utilities.md](./docs/utilities.md)           |
+| **AI/LLM Reference**                         | [docs/ai-reference.md](./docs/ai-reference.md)     |
+
+### For AI Coding Assistants
+
+- [CLAUDE.md](./CLAUDE.md) — Comprehensive guide for Claude and other AI assistants
+- [llms.txt](./llms.txt) — Quick reference for LLM consumption (like robots.txt for AI)
+- [docs/ai-reference.md](./docs/ai-reference.md) — Complete API reference with examples
 
 ## Contributing
 

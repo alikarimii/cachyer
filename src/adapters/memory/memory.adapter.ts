@@ -911,6 +911,72 @@ export class MemoryAdapter implements CacheAdapter {
     return "OK";
   }
 
+  async executeRaw(
+    command: string,
+    args: (string | number)[],
+  ): Promise<unknown> {
+    this.recordOperation(command);
+    const cmd = command.toUpperCase();
+
+    // Commands that need protocol-to-API argument conversion
+    if (cmd === "ZADD") return this._dispatchZadd(args);
+    if (cmd === "ZREVRANGE") return this._dispatchZRevRange(args);
+    if (cmd === "ZRANGE") return this._dispatchZRange(args);
+
+    // Default: method name = command lowercase, raw args passed through directly
+    const methodName = cmd.toLowerCase();
+    const method = (this as Record<string, unknown>)[methodName];
+    if (typeof method !== "function") {
+      throw new Error(`executeRaw: command ${command} not supported by memory adapter`);
+    }
+    return (method as (...a: unknown[]) => Promise<unknown>).call(this, ...args);
+  }
+
+  private _dispatchZadd(args: (string | number)[]): Promise<number> {
+    const key = args[0] as string;
+    let idx = 1;
+    const opts: { nx?: boolean; xx?: boolean; gt?: boolean; lt?: boolean } = {};
+
+    // Parse optional NX/XX/GT/LT flags before score-member pairs
+    while (idx < args.length) {
+      const flag = String(args[idx]).toUpperCase();
+      if (flag === "NX") { opts.nx = true; idx++; }
+      else if (flag === "XX") { opts.xx = true; idx++; }
+      else if (flag === "GT") { opts.gt = true; idx++; }
+      else if (flag === "LT") { opts.lt = true; idx++; }
+      else break;
+    }
+
+    // Parse score-member pairs
+    const members: Array<{ score: number; member: string }> = [];
+    while (idx + 1 < args.length) {
+      members.push({ score: Number(args[idx]), member: String(args[idx + 1]) });
+      idx += 2;
+    }
+
+    return this.zadd(key, members, Object.keys(opts).length > 0 ? opts : undefined);
+  }
+
+  private _dispatchZRevRange(
+    args: (string | number)[],
+  ): Promise<string[] | Array<{ member: string; score: number }>> {
+    const key = args[0] as string;
+    const start = Number(args[1]);
+    const stop = Number(args[2]);
+    const withScores = args[3] === "WITHSCORES";
+    return this.zrevrange(key, start, stop, withScores ? { withScores: true } : undefined);
+  }
+
+  private _dispatchZRange(
+    args: (string | number)[],
+  ): Promise<string[] | Array<{ member: string; score: number }>> {
+    const key = args[0] as string;
+    const start = Number(args[1]);
+    const stop = Number(args[2]);
+    const withScores = args[3] === "WITHSCORES";
+    return this.zrange(key, start, stop, withScores ? { withScores: true } : undefined);
+  }
+
   // =============================================
   // PIPELINE & TRANSACTIONS
   // =============================================
@@ -922,18 +988,7 @@ export class MemoryAdapter implements CacheAdapter {
     for (const entry of entries) {
       try {
         const args = entry.operation.buildArgs(entry.params);
-        const methodName = entry.operation.command.toLowerCase();
-        const method = (this as any)[methodName];
-
-        if (!method) {
-          results.push({
-            success: false,
-            error: new Error(`Unknown command: ${entry.operation.command}`),
-          });
-          continue;
-        }
-
-        const result = await method.call(this, ...args);
+        const result = await this.executeRaw(entry.operation.command, args);
         const parsed = entry.operation.parseResult
           ? entry.operation.parseResult(result)
           : result;

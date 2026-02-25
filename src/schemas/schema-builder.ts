@@ -849,10 +849,13 @@ export class TypedOperationBuilder<
       buildArgs: (params: TKeyParams & { count: number }) => [
         this.keyBuilder(params),
         0,
-        params.count - 1,
+        // Keep top `count` members: remove ranks [0 .. -(count+1)].
+        // Redis resolves negative stop as (cardinality + stop); when
+        // cardinality <= count the range is empty and nothing is removed.
+        -(params.count + 1),
       ],
       parseResult: (r) => r as number,
-      description: `Remove oldest members from sorted set`,
+      description: `Trim sorted set to keep only the top N (count) members`,
     };
     return this.withOperation(opName, operation);
   }
